@@ -146,11 +146,14 @@ sequenceDiagram
 cp .env.example .env
 # generá un UUID para BANO_QR_KEY y editá .env:
 node -e "console.log(require('crypto').randomUUID())"
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ```
 
 - Estado en solo lectura: http://localhost:8080
 - Con permisos (simula el QR): http://localhost:8080/?k=TU_BANO_QR_KEY
+
+> El archivo `docker-compose.local.yml` publica el puerto 8080 solo en tu máquina.
+> En Dokploy NO se usa (Traefik enruta directo al contenedor), por eso el compose base no publica puertos en el host.
 
 ## Desarrollo sin Docker
 

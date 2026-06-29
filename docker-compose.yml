@@ -29,8 +29,8 @@ services:
       dockerfile: Dockerfile
     container_name: bano-front
     restart: unless-stopped
-    ports:
-      - "${FRONT_PORT:-8080}:80"
+    expose:
+      - "80"
     depends_on:
       back:
         condition: service_healthy
