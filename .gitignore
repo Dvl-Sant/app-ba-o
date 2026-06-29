@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+*.log
+.DS_Store
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo
+
+# Editor
+.vscode/
+.idea/

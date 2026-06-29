@@ -1,0 +1,48 @@
+services:
+  back:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    container_name: bano-back
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - BANO_QR_KEY=${BANO_QR_KEY}
+      - LOCK_DURATION_MS=600000
+      - SESSION_DURATION_MS=600000
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - bano-net
+
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    container_name: bano-front
+    restart: unless-stopped
+    ports:
+      - "${FRONT_PORT:-8080}:80"
+    depends_on:
+      back:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - bano-net
+
+networks:
+  bano-net:
+    driver: bridge

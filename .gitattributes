@@ -1,0 +1,7 @@
+# Normalizar line endings: LF en el repo, el OS decide al checkout
+* text=auto eol=lf
+
+# Archivos binarios
+*.png binary
+*.jpg binary
+*.ico binary
