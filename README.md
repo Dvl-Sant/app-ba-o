@@ -99,10 +99,78 @@ sequenceDiagram
 | Variable         | Dónde   | Default | Descripción                                              |
 |------------------|---------|---------|----------------------------------------------------------|
 | `BANO_QR_KEY`    | back    | random  | Secreto del QR. **Generalo una sola vez y NO lo cambies.** |
+| `HARDWARE_TOKEN` | back    | random  | Token que usa el sensor (Shelly/HA) para `POST /sensor`.  |
+| `SENSOR_TIMEOUT_MS`   | back | `300000`  | Si el sensor no reporta en este tiempo, cae a modo manual. |
 | `CORS_ORIGIN`    | back    | `*`     | Origen permitido (tu dominio). Default `*` (cualquiera). |
-| `FRONT_PORT`     | compose | `8080`  | Puerto del front en el host.                            |
-| `LOCK_DURATION_MS`    | back | `600000`  | Duración del lock en ms (10 min).                |
+| `FRONT_PORT`     | compose | `8080`  | Puerto del front en el host (solo en `docker-compose.local.yml`). |
+| `LOCK_DURATION_MS`    | back | `600000`  | Duración del lock en ms (10 min). Solo en modo manual. |
 | `SESSION_DURATION_MS` | back | `600000`  | Duración de la sesión en ms (10 min).            |
+
+## Integración con sensor físico (Shelly + Home Assistant)
+
+El sistema soporta una **segunda fuente de verdad**: un sensor físico (Shelly1 v3) que detecta la luz del baño. Cuando el sensor reporta, **siempre tiene prioridad** sobre el botón manual de la web.
+
+### Política de conflicto
+
+- Mientras `source = "sensor"`, los endpoints `/lock` y `/unlock` de la web devuelven `409 sensor_active`.
+- El front deshabilita los botones y muestra un badge "Sensor activo".
+- Si el sensor deja de reportar más de `SENSOR_TIMEOUT_MS`, el estado cae a modo `manual` automáticamente (resiliencia ante fallos del Shelly/HA/red).
+
+### Flujo
+
+```
+Baño (1er piso)                        Backend (cloud o LAN)
+┌──────────────────┐                   ┌──────────────────┐
+│ Apagador → Shelly│ ── webhook ──→  HA │  POST /sensor    │
+│ → luz + relay    │   (local)  REST → │  (HARDWARE_TOKEN)│
+└──────────────────┘                   │                  │
+                                       │  source = sensor │
+                                       └────────┬─────────┘
+                                                │ GET /state
+2do piso                                        │ cada 2s
+┌──────────────────┐                           │
+│ NodeMCU + 2 LEDs │ ←─────────────────────────┘
+│ rojo / verde     │
+└──────────────────┘
+```
+
+### Endpoint del sensor
+
+```http
+POST /sensor
+Authorization: Bearer <HARDWARE_TOKEN>
+Content-Type: application/json
+
+{"occupied": true}
+```
+
+- `200` → estado actualizado
+- `401` → token inválido
+
+### Configuración en HA (Webhook → REST command)
+
+```yaml
+# configuration.yaml
+rest_command:
+  bano_set_state:
+    url: https://tu-dominio.com/sensor
+    method: POST
+    headers:
+      Authorization: "Bearer TU_HARDWARE_TOKEN"
+      Content-Type: "application/json"
+    payload: '{"occupied": {{ trigger.json.occupied }}}'
+```
+
+Automation con trigger webhook (`/api/webhook/bano_shelly`) que el Shelly llama al cambiar el relay.
+
+### Indicador LED con NodeMCU (ESP8266)
+
+Firmware Arduino C++ minimal: hace `GET /state` cada 2s y enciende GPIO del LED rojo (ocupado) o verde (libre).
+
+- `D1 (GPIO5)` → resistor 220Ω → LED rojo → GND
+- `D2 (GPIO4)` → resistor 220Ω → LED verde → GND
+
+(Detalles del firmware en `firmware/nodemcu-leds/nodemcu-leds.ino`.)
 
 ## Qué cambiar en producción (y cómo generar el QR)
 
@@ -170,10 +238,11 @@ cd front && npm install && npm run dev   # http://localhost:5173 (proxy /api -> 
 | Método | Ruta      | Auth             | Body                | Respuestas                                      |
 |--------|-----------|------------------|---------------------|-------------------------------------------------|
 | GET    | `/health` | -                | -                   | `200` healthcheck                               |
-| GET    | `/state`  | -                | -                   | `200` estado público                            |
+| GET    | `/state`  | -                | -                   | `200` estado público (con campo `source`)       |
 | POST   | `/auth`   | -                | `{k}`               | `200` `{sessionToken, expiresInMs}` / `401`    |
-| POST   | `/lock`   | `Bearer` session | -                   | `200` ocupado / `401` sesión / `409` ya ocupado |
-| POST   | `/unlock` | `Bearer` session | -                   | `200` libre / `401` sesión / `403` no dueño     |
+| POST   | `/lock`   | `Bearer` session | -                   | `200` ocupado / `401` sesión / `409` ya ocupado o `sensor_active` |
+| POST   | `/unlock` | `Bearer` session | -                   | `200` libre / `401` sesión / `403` no dueño / `409` `sensor_active` |
+| POST   | `/sensor` | `Bearer` hardware| `{occupied: bool}`  | `200` estado actualizado / `401` token inválido |
 | GET    | `/me`     | `Bearer` session | -                   | `200` `{authenticated: bool}`                   |
 
 ## Estructura del proyecto

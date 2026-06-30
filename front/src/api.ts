@@ -1,7 +1,9 @@
 export type BanoStatus = "free" | "occupied";
+export type BanoSource = "manual" | "sensor";
 
 export interface BanoStateDTO {
   status: BanoStatus;
+  source: BanoSource;
   lockedBy: string | null;
   lockedAt: number | null;
   expiresAt: number | null;

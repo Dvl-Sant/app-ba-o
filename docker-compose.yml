@@ -9,8 +9,10 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - BANO_QR_KEY=${BANO_QR_KEY}
+      - HARDWARE_TOKEN=${HARDWARE_TOKEN}
       - LOCK_DURATION_MS=600000
       - SESSION_DURATION_MS=600000
+      - SENSOR_TIMEOUT_MS=${SENSOR_TIMEOUT_MS:-300000}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
     expose:
       - "3000"

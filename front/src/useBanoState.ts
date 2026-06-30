@@ -9,6 +9,7 @@ import {
   lockOrUnlock,
   setStoredKey,
   setStoredToken,
+  type BanoSource,
   type BanoStateDTO,
 } from "./api.js";
 
@@ -25,6 +26,7 @@ function readQrKeyFromUrl(): string | null {
 
 export interface BanoViewModel {
   status: BanoStateDTO["status"] | "loading";
+  source: BanoSource | null;
   expiresAt: number | null;
   authenticated: boolean;
   error: string | null;
@@ -99,7 +101,7 @@ export function useBanoState(): BanoViewModel {
 
   const runAction = useCallback(
     async (action: "lock" | "unlock"): Promise<void> => {
-      let currentToken = tokenRef.current;
+      const currentToken = tokenRef.current;
       if (!currentToken || !state) return;
       setBusy(true);
       setError(null);
@@ -111,6 +113,14 @@ export function useBanoState(): BanoViewModel {
       } catch (err) {
         if (!(err instanceof BanoApiError)) {
           setError("Error de conexión.");
+          return;
+        }
+        const reason =
+          err.detail && typeof err.detail === "object" && "error" in err.detail
+            ? String((err.detail as { error: unknown }).error)
+            : null;
+        if (reason === "sensor_active") {
+          setError("Controlado por sensor físico. No se puede cambiar manualmente.");
           return;
         }
         if (err.status === 401) {
@@ -166,6 +176,7 @@ export function useBanoState(): BanoViewModel {
 
   return {
     status: state ? state.status : "loading",
+    source: state?.source ?? null,
     expiresAt: remainingMs,
     authenticated: !!token,
     error,

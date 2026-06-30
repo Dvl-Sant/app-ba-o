@@ -1,11 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { QR_KEY } from "./config.js";
+import { HARDWARE_TOKEN, QR_KEY } from "./config.js";
 import {
   claimLock,
   createSession,
   getPublicState,
   isSessionValid,
   releaseLock,
+  setSensorState,
 } from "./state.js";
 
 function extractToken(req: { headers: Record<string, string | string[] | undefined> }): string | null {
@@ -71,4 +72,25 @@ export function registerRoutes(app: FastifyInstance): void {
     const valid = isSessionValid(token);
     return reply.code(200).send({ authenticated: valid });
   });
+
+  app.post<{ Body: { occupied?: boolean } }>(
+    "/sensor",
+    {
+      schema: {
+        body: {
+          type: "object",
+          properties: { occupied: { type: "boolean" } },
+          required: ["occupied"],
+        },
+      },
+    },
+    async (req, reply) => {
+      const token = extractToken(req);
+      if (!token || token !== HARDWARE_TOKEN) {
+        return reply.code(401).send({ error: "invalid_hardware_token" });
+      }
+      setSensorState(Boolean(req.body.occupied));
+      return reply.code(200).send(getPublicState());
+    },
+  );
 }

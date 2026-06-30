@@ -10,6 +10,7 @@ import {
   FaExclamationTriangle,
   FaInfoCircle,
   FaUserCheck,
+  FaBolt,
 } from "react-icons/fa";
 import { useBanoState } from "./useBanoState.js";
 
@@ -29,9 +30,10 @@ export default function App() {
   const isOccupied = vm.status === "occupied";
   const isFree = vm.status === "free";
   const isLoading = vm.status === "loading";
+  const isSensor = vm.source === "sensor";
 
-  const canOccupy = isFree && vm.authenticated && !vm.busy;
-  const canRelease = vm.isOwner && isOccupied && !vm.busy;
+  const canOccupy = isFree && vm.authenticated && !vm.busy && !isSensor;
+  const canRelease = vm.isOwner && isOccupied && !vm.busy && !isSensor;
 
   const theme = isOccupied
     ? "from-red-600 via-red-700 to-rose-800"
@@ -60,7 +62,11 @@ export default function App() {
           <FaRestroom className="text-xl" />
           <span className="text-xs uppercase tracking-widest">Baño · Oficina</span>
         </div>
-        {vm.authenticated ? (
+        {isSensor ? (
+          <span className="flex items-center gap-1 text-xs bg-amber-400/30 rounded-full px-3 py-1 ring-1 ring-amber-200/40">
+            <FaBolt /> Sensor activo
+          </span>
+        ) : vm.authenticated ? (
           <span className="flex items-center gap-1 text-xs bg-white/15 rounded-full px-3 py-1">
             <FaUserCheck /> Sesión activa
           </span>
@@ -102,7 +108,14 @@ export default function App() {
             </div>
 
             <div className="mt-8 w-full flex flex-col gap-3">
-              {!vm.authenticated && !isLoading && (
+              {isSensor && (
+                <div className="rounded-xl bg-amber-400/20 ring-1 ring-amber-200/40 p-4 text-center text-sm flex items-center justify-center gap-2">
+                  <FaBolt className="text-lg shrink-0" />
+                  <span>Estado controlado por sensor físico (Shelly). La app es solo informativa.</span>
+                </div>
+              )}
+
+              {!vm.authenticated && !isLoading && !isSensor && (
                 <div className="rounded-xl bg-black/25 p-4 text-center text-sm flex items-center justify-center gap-2">
                   <FaQrcode className="text-lg shrink-0" />
                   <span>Escaneá el QR del baño para poder cambiar el estado.</span>
