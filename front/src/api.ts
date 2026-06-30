@@ -1,53 +1,39 @@
-export type BanoStatus = "free" | "occupied";
-export type BanoSource = "manual" | "sensor";
-
-export interface BanoStateDTO {
-  status: BanoStatus;
-  source: BanoSource;
-  lockedBy: string | null;
-  lockedAt: number | null;
-  expiresAt: number | null;
-}
+import type { AuthResponse, BanoStateDTO, PublicUser } from "./types.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+const TOKEN_KEY = "bano_token";
+const USER_KEY = "bano_user";
 
-const TOKEN_KEY = "bano_session_token";
-const TOKEN_EXP_KEY = "bano_session_expires_at";
-const QR_KEY_STORE = "bano_qr_key";
-
-export function getStoredToken(): string | null {
+export function getStoredAuth(): { token: string; user: PublicUser } | null {
   const token = localStorage.getItem(TOKEN_KEY);
-  const expiresAt = Number(localStorage.getItem(TOKEN_EXP_KEY) ?? 0);
-  if (!token) return null;
-  if (expiresAt && expiresAt < Date.now()) {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(TOKEN_EXP_KEY);
+  const userRaw = localStorage.getItem(USER_KEY);
+  if (!token || !userRaw) return null;
+  try {
+    return { token, user: JSON.parse(userRaw) as PublicUser };
+  } catch {
     return null;
   }
-  return token;
 }
 
-export function setStoredToken(token: string, expiresInMs: number): void {
+export function setStoredAuth(token: string, user: PublicUser): void {
   localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(TOKEN_EXP_KEY, String(Date.now() + expiresInMs));
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-export function getStoredKey(): string | null {
-  return localStorage.getItem(QR_KEY_STORE);
-}
-
-export function setStoredKey(k: string): void {
-  localStorage.setItem(QR_KEY_STORE, k);
-}
-
-export function clearSession(): void {
+export function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(TOKEN_EXP_KEY);
+  localStorage.removeItem(USER_KEY);
 }
 
-export function clearAll(): void {
-  clearSession();
-  localStorage.removeItem(QR_KEY_STORE);
+function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export class BanoApiError extends Error {
+  constructor(public readonly status: number, public readonly code: string | null) {
+    super(`API error ${status}`);
+    this.name = "BanoApiError";
+  }
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -56,37 +42,43 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (init.body && !headers["Content-Type"] && !headers["content-type"]) {
     headers["Content-Type"] = "application/json";
   }
+  const token = getStoredToken();
+  if (token && !headers["Authorization"]) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
-    let detail: unknown = null;
+    let code: string | null = null;
     try {
-      detail = await res.json();
+      const detail = (await res.json()) as unknown;
+      if (detail && typeof detail === "object" && "error" in detail) {
+        code = String((detail as { error: unknown }).error);
+      }
     } catch {
       /* ignore */
     }
-    throw new BanoApiError(res.status, detail);
+    throw new BanoApiError(res.status, code);
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
-export class BanoApiError extends Error {
-  constructor(public readonly status: number, public readonly detail: unknown) {
-    super(`API error ${status}`);
-    this.name = "BanoApiError";
-  }
-}
-
-export function authWithKey(k: string): Promise<{ sessionToken: string; expiresInMs: number }> {
-  return request("/auth", { method: "POST", body: JSON.stringify({ k }) });
-}
-
-export function fetchState(): Promise<BanoStateDTO> {
-  return request<BanoStateDTO>("/state");
-}
-
-export function lockOrUnlock(token: string, action: "lock" | "unlock"): Promise<BanoStateDTO> {
-  return request<BanoStateDTO>(`/${action}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-}
+export const api = {
+  register: (username: string, name: string, password: string) =>
+    request<AuthResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username, name, password }),
+    }),
+  login: (username: string, password: string) =>
+    request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  me: () => request<{ user: PublicUser }>("/auth/me"),
+  state: () => request<BanoStateDTO>("/state"),
+  lock: () => request<BanoStateDTO>("/bathroom/lock", { method: "POST" }),
+  unlock: () => request<BanoStateDTO>("/bathroom/unlock", { method: "POST" }),
+  extend: () => request<BanoStateDTO>("/bathroom/extend", { method: "POST" }),
+  joinQueue: () => request<BanoStateDTO>("/queue/join", { method: "POST" }),
+  leaveQueue: () => request<BanoStateDTO>("/queue/leave", { method: "POST" }),
+};

@@ -1,18 +1,41 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: bano-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-bano}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bano}
+      - POSTGRES_DB=${POSTGRES_DB:-bano}
+    volumes:
+      - bano-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bano} -d ${POSTGRES_DB:-bano}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - bano-net
+
   back:
     build:
       context: ./back
       dockerfile: Dockerfile
     container_name: bano-back
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       - PORT=3000
       - HOST=0.0.0.0
-      - BANO_QR_KEY=${BANO_QR_KEY}
-      - HARDWARE_TOKEN=${HARDWARE_TOKEN}
-      - LOCK_DURATION_MS=600000
-      - SESSION_DURATION_MS=600000
-      - SENSOR_TIMEOUT_MS=${SENSOR_TIMEOUT_MS:-300000}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-bano}:${POSTGRES_PASSWORD:-bano}@db:5432/${POSTGRES_DB:-bano}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - LOCK_DURATION_MS=${LOCK_DURATION_MS:-600000}
+      - CLAIM_WINDOW_MS=${CLAIM_WINDOW_MS:-60000}
+      - EXTRA_MINUTES_MS=${EXTRA_MINUTES_MS:-60000}
+      - EXTRA_MAX=${EXTRA_MAX:-5}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
     expose:
       - "3000"
@@ -21,7 +44,7 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 10s
     networks:
       - bano-net
 
@@ -44,6 +67,9 @@ services:
       start_period: 5s
     networks:
       - bano-net
+
+volumes:
+  bano-data:
 
 networks:
   bano-net:

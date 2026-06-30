@@ -3,22 +3,19 @@ import { randomUUID } from "node:crypto";
 export const PORT = Number(process.env.PORT ?? 3000);
 export const HOST = process.env.HOST ?? "0.0.0.0";
 
+export const DATABASE_URL =
+  process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/bano";
+
+const envJwt = process.env.JWT_SECRET;
+if (!envJwt) {
+  console.warn("[config] JWT_SECRET not set. Using random secret for this run (tokens won't survive restart).");
+}
+export const JWT_SECRET = envJwt ?? randomUUID();
+export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "7d";
+
 export const LOCK_DURATION_MS = Number(process.env.LOCK_DURATION_MS ?? 10 * 60 * 1000);
-export const SESSION_DURATION_MS = Number(process.env.SESSION_DURATION_MS ?? 10 * 60 * 1000);
-export const SENSOR_TIMEOUT_MS = Number(process.env.SENSOR_TIMEOUT_MS ?? 5 * 60 * 1000);
-
-const envKey = process.env.BANO_QR_KEY;
-if (!envKey) {
-  console.warn("[config] BANO_QR_KEY not set. Using random key for this run (QR will not be stable).");
-}
-export const QR_KEY = envKey ?? randomUUID();
-
-const envHardwareToken = process.env.HARDWARE_TOKEN;
-if (!envHardwareToken) {
-  console.warn(
-    "[config] HARDWARE_TOKEN not set. Using random token for this run (sensor endpoint will not be reachable from outside).",
-  );
-}
-export const HARDWARE_TOKEN = envHardwareToken ?? randomUUID();
+export const CLAIM_WINDOW_MS = Number(process.env.CLAIM_WINDOW_MS ?? 60 * 1000);
+export const EXTRA_MINUTES_MS = Number(process.env.EXTRA_MINUTES_MS ?? 60 * 1000);
+export const EXTRA_MAX = Number(process.env.EXTRA_MAX ?? 5);
 
 export const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "*";

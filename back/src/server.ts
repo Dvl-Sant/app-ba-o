@@ -1,15 +1,20 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { CORS_ORIGIN, HOST, PORT, QR_KEY } from "./config.js";
-import { purge } from "./state.js";
-import { registerRoutes } from "./routes.js";
+import { CORS_ORIGIN, HOST, PORT } from "./config.js";
+import { runMigrations } from "./db/migrate.js";
+import { ensureBathroomState, purge } from "./bathroom/logic.js";
+import { HttpError } from "./errors.js";
+import { registerAuthRoutes } from "./auth/routes.js";
+import { registerBathroomRoutes } from "./bathroom/routes.js";
 
 const app = Fastify({ logger: true });
 
-// Tolera POST sin body (lock/unlock) y POST con JSON (auth).
-// Reemplaza el parser por defecto de application/json (que rechaza bodies vacíos)
-// y registra un catch-all para cualquier otro content-type.
-const tolerantParser = (req: unknown, payload: NodeJS.ReadableStream, done: (err: Error | null, body?: unknown) => void) => {
+// Tolera POST sin body (lock/unlock/extend/join/leave) y POST con JSON (auth).
+const tolerantParser = (
+  req: unknown,
+  payload: NodeJS.ReadableStream,
+  done: (err: Error | null, body?: unknown) => void,
+) => {
   const chunks: Buffer[] = [];
   payload.on("data", (chunk: Buffer) => chunks.push(chunk));
   payload.on("end", () => {
@@ -28,13 +33,38 @@ app.addContentTypeParser("*", tolerantParser);
 
 await app.register(cors, {
   origin: CORS_ORIGIN === "*" ? true : CORS_ORIGIN,
-  methods: ["GET", "POST"],
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type"],
 });
 
-registerRoutes(app);
+app.setErrorHandler((err, _req, reply) => {
+  if (err instanceof HttpError) {
+    return reply.code(err.status).send({ error: err.code });
+  }
+  if ((err as { validation?: unknown }).validation) {
+    return reply.code(400).send({ error: "invalid_body" });
+  }
+  app.log.error({ err }, "unhandled error");
+  return reply.code(500).send({ error: "internal" });
+});
 
-setInterval(() => purge(), 30_000);
+await registerAuthRoutes(app);
+registerBathroomRoutes(app);
+
+app.get("/health", async () => ({ status: "ok" }));
+
+try {
+  await runMigrations();
+  await ensureBathroomState();
+  app.log.info("DB ready: migrations applied, bathroom state ensured");
+} catch (err) {
+  app.log.error({ err }, "DB bootstrap failed");
+  process.exit(1);
+}
+
+setInterval(() => {
+  void purge();
+}, 30_000);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "shutting down");
@@ -53,7 +83,6 @@ app
   .listen({ port: PORT, host: HOST })
   .then(() => {
     app.log.info(`Baño API ready on http://${HOST}:${PORT}`);
-    app.log.info(`QR link format: https://YOUR_DOMAIN/?k=${QR_KEY}`);
   })
   .catch((err) => {
     app.log.error({ err }, "failed to start");

@@ -1,11 +1,17 @@
-# Solo para uso local: publica el puerto 8080 del front en el host.
+# Solo para uso local: publica puertos en el host.
 # Dokploy NO usa este archivo (Traefik enruta directamente al contenedor).
 #
 # Uso local:
+#   cp .env.example .env  (editá JWT_SECRET)
 #   docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
-#   -> http://localhost:8080
+#   -> http://localhost:8080   (front)
+#   -> postgres en localhost:5432
 
 services:
+  db:
+    ports:
+      - "${DB_PORT:-5432}:5432"
+
   front:
     ports:
       - "${FRONT_PORT:-8080}:80"

@@ -1,11 +1,16 @@
 # Baño Office
 
-App web minimal para saber si el único baño de la oficina está libre u ocupado, sin sensores ni hardware. Solo un QR impreso en la puerta.
+App web para saber si el baño único de la oficina está libre u ocupado, **con login de usuarios, cola de turnos y tiempo extra**. Los usuarios autenticados controlan el estado del baño; cuando está ocupado, el resto puede anotarse en una fila y recibir un aviso cuando le toca.
 
-- **Front**: React + Vite + TypeScript + Tailwind + react-icons. Mobile-first, una sola pantalla.
-- **Back**: Node.js + Fastify + TypeScript. Estado en memoria, sin base de datos.
-- **Control de acceso**: QR estático con secreto (`?k=...`) que se canjea por una sesión de 10 min.
-- **Lock distribuido**: el primero en tocar "Ocupar" obtiene el control; solo ese token puede liberar.
+- **Front**: React + Vite + TypeScript + Tailwind + react-icons. Mobile-first.
+- **Back**: Node.js + Fastify + TypeScript + Drizzle ORM.
+- **DB**: PostgreSQL (estado y usuarios persistentes).
+- **Control de acceso**: registro + login con JWT. El primero en registrarse es admin.
+- **Cola FIFO**: al liberar, se le ofrece el turno al siguiente; tiene 60 s para ocuparlo o pasa al próximo.
+- **Tiempo extra**: el que está dentro puede sumar +1 min (hasta `EXTRA_MAX` veces).
+- **Notificaciones in-app**: toast + sonido para "se ocupó/liberó" y "te toca". Preparado para sumar Web Push en el futuro.
+
+> **Cambio desde v1**: la versión anterior usaba un QR anónimo impreso en la puerta y un sensor Shelly. Esos mecanismos se eliminaron. Ahora el control lo tienen los usuarios autenticados. El firmware NodeMCU de los LEDs sigue funcionando porque `GET /state` sigue siendo público.
 
 ---
 
@@ -14,265 +19,221 @@ App web minimal para saber si el único baño de la oficina está libre u ocupad
 ```mermaid
 graph LR
     subgraph Navegador[Navegador / Celular]
-        UI[Front React<br/>Vite + Tailwind]
-        LS[(localStorage<br/>token + k)]
+        UI[Front React]
+        LS[(localStorage<br/>JWT + usuario)]
     end
 
-    subgraph Docker[Docker Compose]
-        NGINX[Nginx<br/>sirve estáticos<br/>proxy /api]
-        API[Fastify API<br/>estado + sesiones<br/>en memoria]
+    subgraph Docker[Docker Compose / Dokploy]
+        NGINX[Nginx<br/>estáticos + proxy /api]
+        API[Fastify API<br/>auth + baño + cola]
+        PG[(PostgreSQL<br/>usuarios, estado, cola)]
     end
 
-    QR((QR impreso<br/>en la puerta))
-
-    QR -. escaneo .-> UI
-    UI <-->|polling 2s<br/>POST /auth /lock /unlock| NGINX
+    UI <-->|polling 2s<br/>JSON + Bearer| NGINX
     NGINX <-->|HTTP interno :3000| API
+    API <--> PG
     UI <--> LS
 ```
 
-Sin base de datos a propósito: el estado es un único objeto global. Si el contenedor se reinicia, arranca "Libre" en menos de 1 segundo. Para un baño de oficina es un tradeoff aceptable.
-
-## Modelo de control de acceso
-
-El QR **no identifica personas**. Es una "llave física" que, al usarse, emite una sesión temporal. Como está impreso en la puerta del baño, para abusar del estado alguien tendría que caminar hasta el baño y escanearlo.
+## Modelo de datos
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Libre
-    Libre --> Ocupado: POST /lock\n(con sesión válida)
-    Ocupado --> Libre: POST /unlock\n(solo dueño del lock)
-    Ocupado --> Libre: expira el lock\n(10 min)
-    Ocupado --> Ocupado: otro intenta /lock\n→ 409 already_locked
+erDiagram
+    users ||--o{ queue_entries : "se anota"
+    users ||--o| bathroom_state : "bloquea / notificado"
+    users {
+        uuid id PK
+        varchar email UK
+        varchar name
+        varchar password_hash
+        enum role "admin | member"
+    }
+    bathroom_state {
+        int id PK "singleton = 1"
+        enum status "free | occupied"
+        uuid locked_by_user_id FK
+        timestamptz expires_at
+        int extra_minutes_used
+        uuid current_notified_user_id FK
+        timestamptz notified_at
+    }
+    queue_entries {
+        uuid id PK
+        uuid user_id FK
+        timestamptz joined_at
+        enum status "waiting | notified | served | skipped"
+    }
 ```
 
 ## Flujo completo de uso
 
 ```mermaid
 sequenceDiagram
-    actor U as Usuario (en el baño)
-    actor C as Compañeros (en sus escritorios)
+    participant A as Ana
+    participant B as Bob
     participant F as Front
-    participant B as Back
+    participant API as Back
+    participant DB as Postgres
 
-    U->>F: Escanea QR<br/>https://dominio/?k=SECRETO
-    F->>B: POST /auth {k: SECRETO}
-    B-->>F: {sessionToken, expiresInMs: 600000}
-    F->>F: guarda token + k en localStorage
-    F->>F: limpia ?k de la URL
+    A->>F: Login
+    F->>API: POST /auth/login
+    API-->>F: { token, user }
+    A->>F: "Marcar Ocupado"
+    F->>API: POST /bathroom/lock (Bearer)
+    API->>DB: status=occupied, lockedBy=Ana, expiresAt=now+10m
+    API-->>F: 200
 
-    U->>F: Toca "Marcar Ocupado"
-    F->>B: POST /lock (Bearer token)
-    B->>B: status=occupied, lockedBy=token, expiresAt=now+10min
-    B-->>F: 200 {status: "occupied", expiresAt}
-    F->>F: muestra candado rojo + countdown
+    B->>F: "Sumarme a la fila"
+    F->>API: POST /queue/join (Bearer)
+    API->>DB: queue_entries(Bob, waiting)
 
-    loop cada 2 segundos
-        C->>B: GET /state
-        B-->>C: {status: "occupied"}
-        C->>C: actualiza UI a "Ocupado"
-    end
+    A->>F: "Liberar"
+    F->>API: POST /bathroom/unlock
+    API->>DB: status=free; notifyNext() → Bob=notified
+    API-->>F: { notifiedUserId: Bob }
+    F->>F: toast + sonido "Te toca" a Bob
 
-    U->>F: Toca "Liberar"
-    F->>B: POST /unlock (Bearer token)
-    B->>B: valida que lockedBy === token
-    B-->>F: 200 {status: "free"}
-    F->>F: muestra candado verde
-
-    alt el usuario se olvida de liberar
-        B->>B: a los 10 min, purge()
-        B->>B: status=free automáticamente
-    end
-
-    alt token expira y usuario toca algo
-        F->>B: POST /lock (Bearer token vencido)
-        B-->>F: 401 invalid_session
-        F->>B: POST /auth {k} (re-auth silencioso)
-        B-->>F: nuevo token
-        F->>B: reintenta POST /lock
-        B-->>F: 200
-    end
+    B->>F: "Ocupar (es mi turno)"
+    F->>API: POST /bathroom/lock
+    API->>DB: status=occupied, lockedBy=Bob, Bob=served
+    Note over API,DB: Si Bob no ocupa en 60 s, purge() lo saltea<br/>y notifica al siguiente.
 ```
+
+### Tiempo extra
+Mientras el baño está ocupado, **solo el dueño del lock** ve el botón **"Tiempo extra +1 min"**. Cada toque suma `EXTRA_MINUTES_MS` (60 s) hasta `EXTRA_MAX` (5) veces.
+
+## Notificaciones
+- **Baño ocupado / libre**: cuando el estado cambia, todos los que tienen la pestaña abierta ven un toast + sonido.
+- **Te toca**: cuando es tu turno en la fila, recibís un toast + sonido distintivo y un contador de 60 s.
+- La capa de notificaciones (`front/src/notifications.ts`) está aislada para sumar **Web Push** después (avisos con la pestaña cerrada) sin tocar el resto.
+
+## API
+
+| Método | Ruta                 | Auth            | Body                                          | Descripción                                            |
+|--------|----------------------|-----------------|-----------------------------------------------|--------------------------------------------------------|
+| GET    | `/health`            | —               | —                                             | healthcheck                                            |
+| GET    | `/state`             | —               | —                                             | estado público + cola (para el front y el firmware LED)|
+| POST   | `/auth/register`     | —               | `{email,name,password}`                       | registro; el 1er usuario es `admin`. Devuelve JWT.    |
+| POST   | `/auth/login`        | —               | `{email,password}`                            | login. Devuelve JWT.                                   |
+| GET    | `/auth/me`           | `Bearer` JWT    | —                                             | usuario actual                                          |
+| PATCH  | `/auth/me`           | `Bearer` JWT    | `{name?,currentPassword?,newPassword?}`       | editar perfil / cambiar contraseña                     |
+| GET    | `/users`             | `Bearer` admin  | —                                             | listar usuarios                                         |
+| PATCH  | `/users/:id`         | `Bearer` admin  | `{name?,role?}`                               | editar usuario                                          |
+| DELETE | `/users/:id`         | `Bearer` admin  | —                                             | borrar usuario (no a sí mismo)                          |
+| POST   | `/bathroom/lock`     | `Bearer` JWT    | —                                             | ocupar (solo si está libre y, si hay cola, es tu turno)|
+| POST   | `/bathroom/unlock`   | `Bearer` JWT    | —                                             | liberar (dueño o admin) → notifica al siguiente        |
+| POST   | `/bathroom/extend`   | `Bearer` JWT    | —                                             | +1 min de tiempo extra (solo dueño)                     |
+| POST   | `/queue/join`        | `Bearer` JWT    | —                                             | sumarse a la fila (solo si está ocupado)               |
+| POST   | `/queue/leave`       | `Bearer` JWT    | —                                             | salirse de la fila                                      |
+
+**Errores** vía `{ "error": "<code>" }` con status HTTP (`401 unauthorized`, `403 not_your_turn`/`not_owner`/`admin_required`, `409 already_locked`/`already_in_queue`/`extra_max_reached`, etc.).
 
 ## Variables de entorno
 
-| Variable         | Dónde   | Default | Descripción                                              |
-|------------------|---------|---------|----------------------------------------------------------|
-| `BANO_QR_KEY`    | back    | random  | Secreto del QR. **Generalo una sola vez y NO lo cambies.** |
-| `HARDWARE_TOKEN` | back    | random  | Token que usa el sensor (Shelly/HA) para `POST /sensor`.  |
-| `SENSOR_TIMEOUT_MS`   | back | `300000`  | Si el sensor no reporta en este tiempo, cae a modo manual. |
-| `CORS_ORIGIN`    | back    | `*`     | Origen permitido (tu dominio). Default `*` (cualquiera). |
-| `FRONT_PORT`     | compose | `8080`  | Puerto del front en el host (solo en `docker-compose.local.yml`). |
-| `LOCK_DURATION_MS`    | back | `600000`  | Duración del lock en ms (10 min). Solo en modo manual. |
-| `SESSION_DURATION_MS` | back | `600000`  | Duración de la sesión en ms (10 min).            |
+| Variable           | Dónde   | Default                                   | Descripción                                              |
+|--------------------|---------|-------------------------------------------|----------------------------------------------------------|
+| `DATABASE_URL`     | back    | `postgres://bano:bano@localhost:5432/bano`| Cadena de conexión a Postgres.                           |
+| `JWT_SECRET`       | back    | random (inestable)                        | Secreto para firmar JWT. **Generalo y fijalo.**          |
+| `JWT_EXPIRES_IN`   | back    | `7d`                                      | Validez del token.                                       |
+| `LOCK_DURATION_MS` | back    | `600000`                                  | Duración inicial del lock (10 min).                      |
+| `CLAIM_WINDOW_MS`  | back    | `60000`                                   | Tiempo del siguiente en la fila para tomar el lock (60s).|
+| `EXTRA_MINUTES_MS` | back    | `60000`                                   | Cuánto suma cada "tiempo extra" (1 min).                 |
+| `EXTRA_MAX`        | back    | `5`                                       | Máx. extras por lock.                                    |
+| `CORS_ORIGIN`      | back    | `*`                                       | Origen permitido. En prod, tu dominio.                   |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | `bano` / `bano` / `bano` | Credenciales del Postgres del compose. |
+| `FRONT_PORT`       | local   | `8080`                                    | Puerto del front en el host (solo `docker-compose.local.yml`). |
 
-## Integración con sensor físico (Shelly + Home Assistant)
+## Despliegue en Dokploy
 
-El sistema soporta una **segunda fuente de verdad**: un sensor físico (Shelly1 v3) que detecta la luz del baño. Cuando el sensor reporta, **siempre tiene prioridad** sobre el botón manual de la web.
+1. **Creá el servicio** desde este repo (usa `docker-compose.yml`). Levanta 3 servicios: `db` (Postgres), `back`, `front`.
+2. **Variables obligatorias** en el servicio `back`:
+   - `JWT_SECRET`: `node -e "console.log(require('crypto').randomUUID())"`
+   - `POSTGRES_PASSWORD`: una contraseña fuerte.
+   - `CORS_ORIGIN`: `https://bano.tu-empresa.com`
+3. Traefik (Dokploy) enruta al `front` (Nginx), que proxya `/api/*` al `back`.
+4. Las **migraciones se aplican solas** al arrancar el back (`runMigrations()` en `server.ts`).
+5. El primer usuario que se registre será **admin** y podrá gestionar al resto desde `/users`.
 
-### Política de conflicto
-
-- Mientras `source = "sensor"`, los endpoints `/lock` y `/unlock` de la web devuelven `409 sensor_active`.
-- El front deshabilita los botones y muestra un badge "Sensor activo".
-- Si el sensor deja de reportar más de `SENSOR_TIMEOUT_MS`, el estado cae a modo `manual` automáticamente (resiliencia ante fallos del Shelly/HA/red).
-
-### Flujo
-
-```
-Baño (1er piso)                        Backend (cloud o LAN)
-┌──────────────────┐                   ┌──────────────────┐
-│ Apagador → Shelly│ ── webhook ──→  HA │  POST /sensor    │
-│ → luz + relay    │   (local)  REST → │  (HARDWARE_TOKEN)│
-└──────────────────┘                   │                  │
-                                       │  source = sensor │
-                                       └────────┬─────────┘
-                                                │ GET /state
-2do piso                                        │ cada 2s
-┌──────────────────┐                           │
-│ NodeMCU + 2 LEDs │ ←─────────────────────────┘
-│ rojo / verde     │
-└──────────────────┘
-```
-
-### Endpoint del sensor
-
-```http
-POST /sensor
-Authorization: Bearer <HARDWARE_TOKEN>
-Content-Type: application/json
-
-{"occupied": true}
-```
-
-- `200` → estado actualizado
-- `401` → token inválido
-
-### Configuración en HA (Webhook → REST command)
-
-```yaml
-# configuration.yaml
-rest_command:
-  bano_set_state:
-    url: https://tu-dominio.com/sensor
-    method: POST
-    headers:
-      Authorization: "Bearer TU_HARDWARE_TOKEN"
-      Content-Type: "application/json"
-    payload: '{"occupied": {{ trigger.json.occupied }}}'
-```
-
-Automation con trigger webhook (`/api/webhook/bano_shelly`) que el Shelly llama al cambiar el relay.
-
-### Indicador LED con NodeMCU (ESP8266)
-
-Firmware Arduino C++ minimal: hace `GET /state` cada 2s y enciende GPIO del LED rojo (ocupado) o verde (libre).
-
-- `D1 (GPIO5)` → resistor 220Ω → LED rojo → GND
-- `D2 (GPIO4)` → resistor 220Ω → LED verde → GND
-
-(Detalles del firmware en `firmware/nodemcu-leds/nodemcu-leds.ino`.)
-
-## Qué cambiar en producción (y cómo generar el QR)
-
-**Obligatorio:**
-
-1. **Generá un `BANO_QR_KEY` nuevo** (NO uses el del `.env.example` ni el de test):
-   ```bash
-   node -e "console.log(require('crypto').randomUUID())"
-   ```
-   Ejemplo de salida: `a3f5e1b2-4c8d-4a2f-9e6b-1d7c3f5a8b9e`
-
-2. **Configuralo en Dokploy** como variable de entorno del servicio:
-   ```
-   BANO_QR_KEY=a3f5e1b2-4c8d-4a2f-9e6b-1d7c3f5a8b9e
-   ```
-
-3. **Construí el link del QR** con TU dominio real y TU clave:
-   ```
-   https://bano.tu-empresa.com/?k=a3f5e1b2-4c8d-4a2f-9e6b-1d7c3f5a8b9e
-   ```
-
-4. **Generá la imagen QR** con ese link exacto:
-   - Online: cualquier generador (qrcode-monkey.com, qr-code-generator.com)
-   - Consola: `qrencode -t PNG -o bano-qr.png -s 10 "https://bano.tu-empresa.com/?k=..."`
-   - Imprimir en tamaño claro (mínimo 8x8 cm), plastificar y pegar en la puerta del baño.
-
-5. **`CORS_ORIGIN`**: cambialo a tu dominio por seguridad:
-   ```
-   CORS_ORIGIN=https://bano.tu-empresa.com
-   ```
-
-**Opcional:**
-- `FRONT_PORT`: si Dokploy/Traefik mapea a otro puerto.
-- `LOCK_DURATION_MS` / `SESSION_DURATION_MS`: solo si querés lock más corto/largo.
-
-**Regla de oro:** si cambiás `BANO_QR_KEY` después de imprimir el QR, **el QR impreso deja de funcionar** y hay que reimprimirlo.
+> ¿Preferís el **Postgres gestionado de Dokploy**? Crealo ahí, copiá su `DATABASE_URL` en las env del `back`, y podés quitar el servicio `db` del compose.
 
 ## Uso local con Docker
 
 ```bash
 cp .env.example .env
-# generá un UUID para BANO_QR_KEY y editá .env:
-node -e "console.log(require('crypto').randomUUID())"
+# editá .env: JWT_SECRET (pegá un UUID) y POSTGRES_PASSWORD
 docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ```
 
-- Estado en solo lectura: http://localhost:8080
-- Con permisos (simula el QR): http://localhost:8080/?k=TU_BANO_QR_KEY
-
-> El archivo `docker-compose.local.yml` publica el puerto 8080 solo en tu máquina.
-> En Dokploy NO se usa (Traefik enruta directo al contenedor), por eso el compose base no publica puertos en el host.
+- App: http://localhost:8080
+- Postgres: localhost:5432
 
 ## Desarrollo sin Docker
 
 ```bash
+# Postgres accesible (local o docker run -p 5432:5432 ...)
+createdb bano   # o lo que uses
+
 # Back
-cd back && npm install && npm run dev    # http://localhost:3000
+cd back
+npm install
+DATABASE_URL=postgres://... JWT_SECRET=dev npm run dev          # http://localhost:3000
+# primera vez o si cambiás el schema:
+npm run db:generate     # genera SQL en drizzle/
+npm run db:push         # aplica el schema a la DB (o se aplica solo al arrancar)
 
-# Front (en otra terminal)
-cd front && npm install && npm run dev   # http://localhost:5173 (proxy /api -> :3000)
+# Front (otra terminal)
+cd front
+npm install
+npm run dev             # http://localhost:5173 (proxy /api -> :3000)
 ```
-
-## API
-
-| Método | Ruta      | Auth             | Body                | Respuestas                                      |
-|--------|-----------|------------------|---------------------|-------------------------------------------------|
-| GET    | `/health` | -                | -                   | `200` healthcheck                               |
-| GET    | `/state`  | -                | -                   | `200` estado público (con campo `source`)       |
-| POST   | `/auth`   | -                | `{k}`               | `200` `{sessionToken, expiresInMs}` / `401`    |
-| POST   | `/lock`   | `Bearer` session | -                   | `200` ocupado / `401` sesión / `409` ya ocupado o `sensor_active` |
-| POST   | `/unlock` | `Bearer` session | -                   | `200` libre / `401` sesión / `403` no dueño / `409` `sensor_active` |
-| POST   | `/sensor` | `Bearer` hardware| `{occupied: bool}`  | `200` estado actualizado / `401` token inválido |
-| GET    | `/me`     | `Bearer` session | -                   | `200` `{authenticated: bool}`                   |
 
 ## Estructura del proyecto
 
 ```
 Baño/
-├── docker-compose.yml
+├── docker-compose.yml          # db + back + front
+├── docker-compose.local.yml    # puertos para uso local
 ├── .env.example
-├── README.md
 ├── back/
+│   ├── drizzle/                # migraciones SQL (versionadas)
+│   ├── drizzle.config.ts
 │   ├── src/
-│   │   ├── server.ts        # Fastify + parser tolerante + healthcheck
-│   │   ├── state.ts         # Estado en memoria, sesiones, lock con expiry
-│   │   ├── routes.ts        # /auth /lock /unlock /state /me /health
-│   │   └── config.ts        # Variables de entorno
+│   │   ├── server.ts           # bootstrap + migraciones al arranque
+│   │   ├── config.ts           # variables de entorno
+│   │   ├── errors.ts           # HttpError + handler
+│   │   ├── db/
+│   │   │   ├── schema.ts       # users, bathroom_state, queue_entries
+│   │   │   ├── client.ts       # pool + drizzle
+│   │   │   └── migrate.ts      # runner de migraciones
+│   │   ├── auth/
+│   │   │   ├── password.ts     # bcryptjs
+│   │   │   ├── jwt.ts          # sign/verify
+│   │   │   ├── middleware.ts   # getUser / requireUser
+│   │   │   └── routes.ts       # /auth/* + /users (admin)
+│   │   └── bathroom/
+│   │       ├── logic.ts        # estado baño + cola + purge
+│   │       └── routes.ts       # /state /bathroom/* /queue/*
 │   └── Dockerfile
 └── front/
     ├── src/
-    │   ├── App.tsx          # UI principal (estados, switch, iconos)
-    │   ├── api.ts           # Cliente HTTP + persistencia localStorage
-    │   ├── useBanoState.ts  # Hook con polling, auth y re-auth silencioso
-    │   └── main.tsx
-    ├── nginx.conf           # Sirve estáticos + proxy /api -> back:3000
+    │   ├── App.tsx             # gate auth (login/registro/dashboard)
+    │   ├── auth.tsx            # AuthProvider + useAuth
+    │   ├── api.ts              # cliente HTTP (JWT en localStorage)
+    │   ├── useBano.ts          # polling + detección de transiciones
+    │   ├── notifications.ts    # toasts + sonido (extensible a Web Push)
+    │   ├── types.ts
+    │   ├── pages/{Login,Register,Dashboard}Page.tsx
+    │   └── components/Toasts.tsx
     └── Dockerfile
 ```
 
 ## Decisiones de diseño
 
-- **Sin DB**: el estado es un único objeto. Reinicio = arranca libre. Tradeoff aceptable para 1 baño.
-- **Sin WebSocket**: polling cada 2 s. Para 5-15 personas es más simple y suficiente.
-- **QR como secreto físico**: cualquier URL conocida sin `?k` solo muestra estado en solo lectura.
-- **Lock por tiempo, no por presencia**: si alguien olvida liberar, expira solo. Antipatrón de "baño ocupado para siempre".
-- **Re-auth silencioso**: si el token expira mientras la pestaña está abierta y el `k` sigue en `localStorage`, se renueva solo sin pedir re-escanear.
+- **PostgreSQL**: necesario para que usuarios y cola sobrevivan reinicios. El estado del baño es una fila singleton (`id=1`).
+- **JWT stateless**: sin tabla de sesiones; el token viaja en `Authorization: Bearer`.
+- **Cola FIFO por `joined_at`**: simple y correcta. El turno se ofrece de a uno; si no se toma en `CLAIM_WINDOW_MS`, se saltea (evita que la fila se congele).
+- **`purge()` periódico (cada 30 s)**: libera locks expirados y saltea turnos vencidos. También corre antes de cada lectura/acción para coherencia.
+- **Primer usuario = admin**: bootstrap de gestión sin semillas manuales.
+- **Notificaciones in-app primero**: polling de 2 s ya existe; las transiciones disparan toast + sonido. Web Push queda como extensión futura (capa aislada).
+- **Sin WebSocket**: para 5-15 personas el polling es más simple y suficiente.
+- **Firmware LED preservado**: `GET /state` sigue siendo público y devuelve `status`, así que el NodeMCU indicador sigue funcionando. La integración Shelly (sensor) quedó deshabilitada.
