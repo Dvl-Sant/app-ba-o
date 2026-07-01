@@ -28,3 +28,23 @@ export interface BanoStateDTO {
   claimExpiresAt: number | null;
   queue: QueueItem[];
 }
+
+export type UsageReason = "normal" | "forced" | "expired";
+
+export interface HistoryEntry {
+  id: string;
+  userId: string | null;
+  userName: string;
+  lockedAt: number;
+  unlockedAt: number;
+  durationMs: number;
+  extraMinutesUsed: number;
+  reason: UsageReason;
+}
+
+export interface RankingEntry {
+  userId: string | null;
+  userName: string;
+  count: number;
+  totalMs: number;
+}

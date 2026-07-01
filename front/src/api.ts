@@ -1,4 +1,4 @@
-import type { AuthResponse, BanoStateDTO, PublicUser } from "./types.js";
+import type { AuthResponse, BanoStateDTO, HistoryEntry, PublicUser, RankingEntry } from "./types.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const TOKEN_KEY = "bano_token";
@@ -81,4 +81,18 @@ export const api = {
   extend: () => request<BanoStateDTO>("/bathroom/extend", { method: "POST" }),
   joinQueue: () => request<BanoStateDTO>("/queue/join", { method: "POST" }),
   leaveQueue: () => request<BanoStateDTO>("/queue/leave", { method: "POST" }),
+  adminHistory: (from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const qs = q.toString();
+    return request<{ history: HistoryEntry[] }>(`/admin/history${qs ? `?${qs}` : ""}`);
+  },
+  adminRanking: (from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const qs = q.toString();
+    return request<{ ranking: RankingEntry[] }>(`/admin/ranking${qs ? `?${qs}` : ""}`);
+  },
 };

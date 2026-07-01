@@ -4,12 +4,15 @@ import { AuthProvider, useAuth } from "./auth.js";
 import { LoginPage } from "./pages/LoginPage.js";
 import { RegisterPage } from "./pages/RegisterPage.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
+import { AdminPage } from "./pages/AdminPage.js";
 
-type View = "login" | "register";
+type AuthView = "login" | "register";
+type Page = "dashboard" | "admin";
 
 function Shell() {
   const { user, loading } = useAuth();
-  const [view, setView] = useState<View>("login");
+  const [authView, setAuthView] = useState<AuthView>("login");
+  const [page, setPage] = useState<Page>("dashboard");
 
   if (loading) {
     return (
@@ -21,14 +24,18 @@ function Shell() {
   }
 
   if (!user) {
-    return view === "login" ? (
-      <LoginPage onGoRegister={() => setView("register")} />
+    return authView === "login" ? (
+      <LoginPage onGoRegister={() => setAuthView("register")} />
     ) : (
-      <RegisterPage onGoLogin={() => setView("login")} />
+      <RegisterPage onGoLogin={() => setAuthView("login")} />
     );
   }
 
-  return <DashboardPage />;
+  if (page === "admin" && user.role === "admin") {
+    return <AdminPage onBack={() => setPage("dashboard")} />;
+  }
+
+  return <DashboardPage onAdmin={() => setPage("admin")} />;
 }
 
 export default function App() {

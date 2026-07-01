@@ -10,6 +10,7 @@ import {
 export const userRole = pgEnum("user_role", ["admin", "member"]);
 export const banoStatus = pgEnum("bano_status", ["free", "occupied"]);
 export const queueStatus = pgEnum("queue_status", ["waiting", "notified", "served", "skipped"]);
+export const usageReason = pgEnum("usage_reason", ["normal", "forced", "expired"]);
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -47,3 +48,17 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type BathroomStateRow = typeof bathroomState.$inferSelect;
 export type QueueEntry = typeof queueEntries.$inferSelect;
+
+export const usageLog = pgTable("usage_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  userName: varchar("user_name", { length: 100 }).notNull(),
+  lockedAt: timestamp("locked_at", { withTimezone: true }).notNull(),
+  unlockedAt: timestamp("unlocked_at", { withTimezone: true }).notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  extraMinutesUsed: integer("extra_minutes_used").default(0).notNull(),
+  reason: usageReason("reason").default("normal").notNull(),
+});
+
+export type UsageReason = "normal" | "forced" | "expired";
+export type UsageLogRow = typeof usageLog.$inferSelect;

@@ -1,5 +1,6 @@
 import {
   FaClock,
+  FaCrown,
   FaExclamationTriangle,
   FaListOl,
   FaLock,
@@ -17,7 +18,7 @@ function format(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-export function DashboardPage() {
+export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
   const { user, logout } = useAuth();
   const vm = useBano(user?.id ?? null);
   const s = vm.state;
@@ -58,6 +59,15 @@ export function DashboardPage() {
           <span className="text-xs uppercase tracking-widest">Baño · Oficina</span>
         </div>
         <div className="flex items-center gap-2">
+          {user.role === "admin" && (
+            <button
+              onClick={onAdmin}
+              className="text-xs bg-amber-400/90 hover:bg-amber-300 text-slate-900 font-semibold rounded-full px-3 py-1 flex items-center gap-1"
+              title="Panel admin"
+            >
+              <FaCrown /> Admin
+            </button>
+          )}
           <span className="text-xs bg-white/15 rounded-full px-3 py-1">{user.name}</span>
           <button
             onClick={logout}

@@ -6,6 +6,7 @@ import { ensureBathroomState, purge } from "./bathroom/logic.js";
 import { HttpError } from "./errors.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import { registerBathroomRoutes } from "./bathroom/routes.js";
+import { registerAdminRoutes } from "./admin/routes.js";
 
 const app = Fastify({ logger: true });
 
@@ -50,6 +51,7 @@ app.setErrorHandler((err, _req, reply) => {
 
 await registerAuthRoutes(app);
 registerBathroomRoutes(app);
+registerAdminRoutes(app);
 
 app.get("/health", async () => ({ status: "ok" }));
 

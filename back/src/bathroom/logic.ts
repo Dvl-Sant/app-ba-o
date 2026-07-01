@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, lt } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { bathroomState, queueEntries, users } from "../db/schema.js";
+import { bathroomState, queueEntries, usageLog, users } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import {
   CLAIM_WINDOW_MS,
@@ -103,6 +103,30 @@ async function notifyNext(): Promise<void> {
     .where(eq(bathroomState.id, 1));
 }
 
+type ReleaseReason = "normal" | "forced" | "expired";
+
+async function recordUsage(
+  row: { lockedByUserId: string | null; lockedAt: Date | null; extraMinutesUsed: number | null },
+  reason: ReleaseReason,
+): Promise<void> {
+  if (!row.lockedByUserId || !row.lockedAt) return;
+  const [u] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, row.lockedByUserId))
+    .limit(1);
+  const releasedAt = Date.now();
+  await db.insert(usageLog).values({
+    userId: row.lockedByUserId,
+    userName: u?.name ?? "Desconocido",
+    lockedAt: row.lockedAt,
+    unlockedAt: new Date(releasedAt),
+    durationMs: releasedAt - row.lockedAt.getTime(),
+    extraMinutesUsed: row.extraMinutesUsed ?? 0,
+    reason,
+  });
+}
+
 export async function lock(userId: string): Promise<PublicStateDTO> {
   await purge();
   const row = await getRow();
@@ -138,6 +162,8 @@ export async function unlock(userId: string, isAdmin: boolean): Promise<PublicSt
   const row = await getRow();
   if (row.status !== "occupied") throw new HttpError(409, "not_occupied");
   if (row.lockedByUserId !== userId && !isAdmin) throw new HttpError(403, "not_owner");
+  const reason: ReleaseReason = isAdmin && row.lockedByUserId !== userId ? "forced" : "normal";
+  await recordUsage(row, reason);
   await db
     .update(bathroomState)
     .set({
@@ -203,6 +229,7 @@ export async function purge(): Promise<void> {
   const row = await getRow();
 
   if (row.status === "occupied" && row.expiresAt && row.expiresAt.getTime() < t) {
+    await recordUsage(row, "expired");
     await db
       .update(bathroomState)
       .set({
