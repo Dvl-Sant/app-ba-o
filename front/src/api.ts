@@ -79,6 +79,8 @@ export const api = {
   lock: () => request<BanoStateDTO>("/bathroom/lock", { method: "POST" }),
   unlock: () => request<BanoStateDTO>("/bathroom/unlock", { method: "POST" }),
   extend: () => request<BanoStateDTO>("/bathroom/extend", { method: "POST" }),
+  panic: (value: boolean) =>
+    request<BanoStateDTO>("/bathroom/panic", { method: "POST", body: JSON.stringify({ value }) }),
   joinQueue: () => request<BanoStateDTO>("/queue/join", { method: "POST" }),
   leaveQueue: () => request<BanoStateDTO>("/queue/leave", { method: "POST" }),
   adminHistory: (from?: string, to?: string) => {

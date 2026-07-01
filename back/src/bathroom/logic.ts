@@ -38,6 +38,7 @@ export interface PublicStateDTO {
   extraMax: number;
   notifiedUserId: string | null;
   claimExpiresAt: number | null;
+  panic: boolean;
   queue: QueueItemDTO[];
 }
 
@@ -76,6 +77,7 @@ export async function getPublicState(): Promise<PublicStateDTO> {
     extraMax: EXTRA_MAX,
     notifiedUserId: row.currentNotifiedUserId,
     claimExpiresAt: row.notifiedAt ? row.notifiedAt.getTime() + CLAIM_WINDOW_MS : null,
+    panic: !!row.panic,
     queue,
   };
 }
@@ -148,6 +150,7 @@ export async function lock(userId: string): Promise<PublicStateDTO> {
       extraMinutesUsed: 0,
       currentNotifiedUserId: null,
       notifiedAt: null,
+      panic: false,
     })
     .where(eq(bathroomState.id, 1));
   await db
@@ -172,6 +175,7 @@ export async function unlock(userId: string, isAdmin: boolean): Promise<PublicSt
       lockedAt: null,
       expiresAt: null,
       extraMinutesUsed: 0,
+      panic: false,
     })
     .where(eq(bathroomState.id, 1));
   await notifyNext();
@@ -192,6 +196,15 @@ export async function extendLock(userId: string): Promise<PublicStateDTO> {
       extraMinutesUsed: (row.extraMinutesUsed ?? 0) + 1,
     })
     .where(eq(bathroomState.id, 1));
+  return getPublicState();
+}
+
+export async function setPanic(userId: string, value: boolean): Promise<PublicStateDTO> {
+  await purge();
+  const row = await getRow();
+  if (row.status !== "occupied") throw new HttpError(409, "not_occupied");
+  if (row.lockedByUserId !== userId) throw new HttpError(403, "not_owner");
+  await db.update(bathroomState).set({ panic: value }).where(eq(bathroomState.id, 1));
   return getPublicState();
 }
 
@@ -238,6 +251,7 @@ export async function purge(): Promise<void> {
         lockedAt: null,
         expiresAt: null,
         extraMinutesUsed: 0,
+        panic: false,
       })
       .where(eq(bathroomState.id, 1));
     await notifyNext();

@@ -38,6 +38,7 @@ export interface BanoVm {
   occupy: () => Promise<void>;
   release: () => Promise<void>;
   extra: () => Promise<void>;
+  setPanic: (value: boolean) => Promise<void>;
   joinQueue: () => Promise<void>;
   leaveQueue: () => Promise<void>;
 }
@@ -121,6 +122,7 @@ export function useBano(meId: string | null): BanoVm {
     occupy: () => run(api.lock),
     release: () => run(api.unlock),
     extra: () => run(api.extend),
+    setPanic: (v: boolean) => run(() => api.panic(v)),
     joinQueue: () => run(api.joinQueue),
     leaveQueue: () => run(api.leaveQueue),
   };

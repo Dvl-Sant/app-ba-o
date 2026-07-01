@@ -1,0 +1,1 @@
+ALTER TABLE "bathroom_state" ADD COLUMN "panic" boolean DEFAULT false NOT NULL;

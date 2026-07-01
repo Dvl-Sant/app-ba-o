@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { getUser } from "../auth/middleware.js";
 import { HttpError } from "../errors.js";
-import { extendLock, getPublicState, joinQueue, leaveQueue, lock, unlock } from "./logic.js";
+import { extendLock, getPublicState, joinQueue, leaveQueue, lock, setPanic, unlock } from "./logic.js";
 
 export function registerBathroomRoutes(app: FastifyInstance): void {
   app.get("/state", async () => getPublicState());
@@ -22,6 +22,13 @@ export function registerBathroomRoutes(app: FastifyInstance): void {
     const u = getUser(req);
     if (!u) throw new HttpError(401, "unauthorized");
     return extendLock(u.sub);
+  });
+
+  app.post<{ Body: { value?: boolean } }>("/bathroom/panic", async (req) => {
+    const u = getUser(req);
+    if (!u) throw new HttpError(401, "unauthorized");
+    const value = req.body?.value !== false;
+    return setPanic(u.sub, value);
   });
 
   app.post("/queue/join", async (req) => {

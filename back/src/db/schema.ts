@@ -1,4 +1,5 @@
 import {
+  boolean,
   integer,
   pgEnum,
   pgTable,
@@ -32,6 +33,7 @@ export const bathroomState = pgTable("bathroom_state", {
     onDelete: "set null",
   }),
   notifiedAt: timestamp("notified_at", { withTimezone: true }),
+  panic: boolean("panic").default(false).notNull(),
 });
 
 export const queueEntries = pgTable("queue_entries", {

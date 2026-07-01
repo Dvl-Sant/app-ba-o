@@ -31,17 +31,31 @@ export function dismissToast(id: number): void {
 
 let audioCtx: AudioContext | null = null;
 
-function playSound(kind: NotificationKind): void {
+function getCtx(): AudioContext | null {
+  if (audioCtx) return audioCtx;
   try {
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    audioCtx = audioCtx ?? new Ctor();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioCtx = new Ctor();
+    return audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+function playSound(kind: NotificationKind): void {
+  const ctx = getCtx();
+  if (!ctx) return;
+  try {
+    if (ctx.state === "suspended") void ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(ctx.destination);
     osc.frequency.value = kind === "your_turn" ? 880 : kind === "free" ? 660 : 440;
     osc.type = "sine";
-    const t0 = audioCtx.currentTime;
+    const t0 = ctx.currentTime;
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(0.15, t0 + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5);
@@ -49,6 +63,44 @@ function playSound(kind: NotificationKind): void {
     osc.stop(t0 + 0.5);
   } catch {
     /* audio not available */
+  }
+}
+
+let alarmTimer: ReturnType<typeof setInterval> | null = null;
+let alarmToggle = false;
+
+export function startAlarm(): void {
+  if (alarmTimer) return;
+  const beep = () => {
+    const ctx = getCtx();
+    if (!ctx) return;
+    try {
+      if (ctx.state === "suspended") void ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "square";
+      osc.frequency.value = alarmToggle ? 980 : 700;
+      alarmToggle = !alarmToggle;
+      const t0 = ctx.currentTime;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+      osc.start(t0);
+      osc.stop(t0 + 0.31);
+    } catch {
+      /* ignore */
+    }
+  };
+  beep();
+  alarmTimer = setInterval(beep, 650);
+}
+
+export function stopAlarm(): void {
+  if (alarmTimer) {
+    clearInterval(alarmTimer);
+    alarmTimer = null;
   }
 }
 

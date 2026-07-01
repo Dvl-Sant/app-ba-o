@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   FaClock,
   FaCrown,
@@ -8,12 +9,14 @@ import {
   FaPlus,
   FaRestroom,
   FaSignOutAlt,
+  FaToiletPaper,
 } from "react-icons/fa";
 import { useAuth } from "../auth.js";
 import { useBano } from "../useBano.js";
 import { Toasts } from "../components/Toasts.js";
 import { RankingPanel } from "../components/RankingPanel.js";
 import { ChatPanel } from "../components/ChatPanel.js";
+import { startAlarm, stopAlarm } from "../notifications.js";
 
 function format(ms: number): string {
   const total = Math.floor(ms / 1000);
@@ -39,13 +42,22 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
   const canJoin = isOccupied && !isOwner && !myEntry && !vm.busy;
   const canLeave = !!myEntry && !vm.busy;
 
-  const theme = isOccupied
-    ? "from-red-600 via-red-700 to-rose-800"
-    : isFree
-      ? "from-emerald-500 via-emerald-600 to-teal-700"
-      : "from-slate-800 via-slate-900 to-slate-950";
+  const panic = !!s?.panic;
+  const theme = panic
+    ? "from-amber-400 via-yellow-500 to-amber-600"
+    : isOccupied
+      ? "from-red-600 via-red-700 to-rose-800"
+      : isFree
+        ? "from-emerald-500 via-emerald-600 to-teal-700"
+        : "from-slate-800 via-slate-900 to-slate-950";
 
   const claimRemaining = myTurn && s?.claimExpiresAt ? Math.max(0, s.claimExpiresAt - Date.now()) : null;
+
+  useEffect(() => {
+    if (panic && !isOwner) startAlarm();
+    else stopAlarm();
+    return () => stopAlarm();
+  }, [panic, isOwner]);
 
   return (
     <main className={`min-h-full w-full bg-gradient-to-b ${theme} text-white transition-colors duration-700`}>
@@ -85,6 +97,12 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
 
           {/* Baño - centro */}
           <section className="order-1 lg:order-2 w-full max-w-md mx-auto flex flex-col items-center mt-2">
+            {panic && (
+              <div className="w-full rounded-xl bg-black/30 ring-2 ring-white/50 p-3 mb-3 text-center font-bold flex items-center justify-center gap-2 animate-pulse">
+                <FaToiletPaper className="text-xl" />
+                {isOwner ? "Alerta activa: falta papel" : "¡FALTA PAPEL! Llevá al baño"}
+              </div>
+            )}
             <div className={`relative h-56 w-56 rounded-full flex items-center justify-center ${isOccupied ? "pulse-ring" : ""}`}>
               <div className="h-48 w-48 rounded-full bg-white/15 backdrop-blur flex flex-col items-center justify-center text-center shadow-2xl">
                 {isOccupied ? <FaLock className="text-5xl drop-shadow" /> : <FaLockOpen className="text-5xl drop-shadow" />}
@@ -140,6 +158,17 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
                   <span className="opacity-70">
                     ({s?.extraMinutesUsed ?? 0}/{s?.extraMax ?? 0})
                   </span>
+                </button>
+              )}
+
+              {isOwner && isOccupied && (
+                <button
+                  onClick={() => void vm.setPanic(!panic)}
+                  className={`w-full rounded-2xl font-bold py-4 text-lg shadow-xl active:scale-[0.98] transition flex items-center justify-center gap-3 ring-2 ring-amber-200 ${
+                    panic ? "bg-white text-amber-600" : "bg-amber-500 hover:bg-amber-400 text-slate-900"
+                  }`}
+                >
+                  <FaToiletPaper className="text-2xl" /> {panic ? "Cancelar alerta" : "¡Sin papel!"}
                 </button>
               )}
 

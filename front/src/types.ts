@@ -26,6 +26,7 @@ export interface BanoStateDTO {
   extraMax: number;
   notifiedUserId: string | null;
   claimExpiresAt: number | null;
+  panic: boolean;
   queue: QueueItem[];
 }
 
