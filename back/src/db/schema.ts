@@ -62,3 +62,13 @@ export const usageLog = pgTable("usage_log", {
 
 export type UsageReason = "normal" | "forced" | "expired";
 export type UsageLogRow = typeof usageLog.$inferSelect;
+
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  userName: varchar("user_name", { length: 100 }).notNull(),
+  body: varchar("body", { length: 500 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type ChatMessageRow = typeof chatMessages.$inferSelect;

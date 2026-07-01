@@ -1,4 +1,4 @@
-import type { AuthResponse, BanoStateDTO, HistoryEntry, PublicUser, RankingEntry } from "./types.js";
+import type { AuthResponse, BanoStateDTO, ChatMessage, HistoryEntry, PublicUser, RankingEntry } from "./types.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const TOKEN_KEY = "bano_token";
@@ -88,11 +88,19 @@ export const api = {
     const qs = q.toString();
     return request<{ history: HistoryEntry[] }>(`/admin/history${qs ? `?${qs}` : ""}`);
   },
-  adminRanking: (from?: string, to?: string) => {
+  ranking: (from?: string, to?: string) => {
     const q = new URLSearchParams();
     if (from) q.set("from", from);
     if (to) q.set("to", to);
     const qs = q.toString();
-    return request<{ ranking: RankingEntry[] }>(`/admin/ranking${qs ? `?${qs}` : ""}`);
+    return request<{ ranking: RankingEntry[] }>(`/ranking${qs ? `?${qs}` : ""}`);
   },
+  chatMessages: (since?: number) => {
+    const q = new URLSearchParams();
+    if (since !== undefined) q.set("since", new Date(since).toISOString());
+    const qs = q.toString();
+    return request<{ messages: ChatMessage[] }>(`/chat${qs ? `?${qs}` : ""}`);
+  },
+  sendChat: (body: string) =>
+    request<{ message: ChatMessage }>("/chat", { method: "POST", body: JSON.stringify({ body }) }),
 };

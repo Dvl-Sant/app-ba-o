@@ -7,6 +7,8 @@ import { HttpError } from "./errors.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import { registerBathroomRoutes } from "./bathroom/routes.js";
 import { registerAdminRoutes } from "./admin/routes.js";
+import { registerStatsRoutes } from "./stats/routes.js";
+import { registerChatRoutes } from "./chat/routes.js";
 
 const app = Fastify({ logger: true });
 
@@ -52,6 +54,8 @@ app.setErrorHandler((err, _req, reply) => {
 await registerAuthRoutes(app);
 registerBathroomRoutes(app);
 registerAdminRoutes(app);
+registerStatsRoutes(app);
+await registerChatRoutes(app);
 
 app.get("/health", async () => ({ status: "ok" }));
 

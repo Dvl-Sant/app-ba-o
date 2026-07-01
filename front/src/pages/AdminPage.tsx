@@ -58,7 +58,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      const [h, r] = await Promise.all([api.adminHistory(f, t), api.adminRanking(f, t)]);
+      const [h, r] = await Promise.all([api.adminHistory(f, t), api.ranking(f, t)]);
       setHistory(h.history);
       setRanking(r.ranking);
     } catch {

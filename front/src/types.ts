@@ -48,3 +48,11 @@ export interface RankingEntry {
   count: number;
   totalMs: number;
 }
+
+export interface ChatMessage {
+  id: string;
+  userId: string | null;
+  userName: string;
+  body: string;
+  createdAt: number;
+}

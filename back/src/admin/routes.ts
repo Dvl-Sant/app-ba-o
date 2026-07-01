@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { and, count, desc, gte, lte, sum } from "drizzle-orm";
+import { and, desc, gte, lte } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { usageLog, type UsageReason } from "../db/schema.js";
 import { getUser } from "../auth/middleware.js";
@@ -44,30 +44,6 @@ export function registerAdminRoutes(app: FastifyInstance): void {
         durationMs: r.durationMs,
         extraMinutesUsed: r.extraMinutesUsed,
         reason: r.reason as UsageReason,
-      })),
-    };
-  });
-
-  app.get<{ Querystring: { from?: string; to?: string } }>("/admin/ranking", async (req) => {
-    requireAdmin(req);
-    const where = buildDateRange(req.query.from, req.query.to);
-    const rows = await db
-      .select({
-        userId: usageLog.userId,
-        userName: usageLog.userName,
-        count: count(),
-        totalMs: sum(usageLog.durationMs),
-      })
-      .from(usageLog)
-      .where(where)
-      .groupBy(usageLog.userId, usageLog.userName)
-      .orderBy(desc(count()));
-    return {
-      ranking: rows.map((r) => ({
-        userId: r.userId,
-        userName: r.userName,
-        count: Number(r.count),
-        totalMs: Number(r.totalMs ?? 0),
       })),
     };
   });
