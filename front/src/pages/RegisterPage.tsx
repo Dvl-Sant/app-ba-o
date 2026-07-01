@@ -87,7 +87,7 @@ export function RegisterPage({ onGoLogin }: { onGoLogin: () => void }) {
       </form>
 
       <p className="text-center text-sm text-slate-300 mt-4">
-        ¿Ya tenés cuenta?{" "}
+        ¿Ya tienes cuenta?{" "}
         <button onClick={onGoLogin} className="text-emerald-400 hover:underline font-semibold">
           Iniciar sesión
         </button>

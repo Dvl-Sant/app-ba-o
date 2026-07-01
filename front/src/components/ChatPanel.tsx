@@ -57,7 +57,7 @@ export function ChatPanel() {
       lastRef.current = res.message.createdAt;
     } catch (err) {
       setInput(body);
-      if (err instanceof BanoApiError && err.status === 401) setError("Iniciá sesión para chatear.");
+      if (err instanceof BanoApiError && err.status === 401) setError("Inicia sesión para chatear.");
       else setError("No se pudo enviar.");
     } finally {
       setSending(false);
@@ -71,7 +71,7 @@ export function ChatPanel() {
       </div>
       <div className="flex-1 overflow-y-auto flex flex-col gap-2 pr-1 min-h-0">
         {messages.length === 0 ? (
-          <p className="text-sm text-white/50 m-auto">Sin mensajes todavía. ¡Escribí algo!</p>
+          <p className="text-sm text-white/50 m-auto">Sin mensajes todavía. ¡Escribe algo!</p>
         ) : (
           messages.map((m) => {
             const mine = m.userId === meId;
@@ -94,7 +94,7 @@ export function ChatPanel() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           maxLength={500}
-          placeholder="Escribí un mensaje…"
+          placeholder="Escribe un mensaje…"
           className="flex-1 min-w-0 rounded-full bg-white/10 ring-1 ring-white/15 px-3 py-2 text-sm outline-none placeholder:text-white/40"
         />
         <button

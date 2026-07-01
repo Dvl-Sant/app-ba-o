@@ -10,21 +10,21 @@ function humanize(code: string | null): string {
     case "already_locked":
       return "Ya está ocupado.";
     case "not_owner":
-      return "No sos quien lo está usando.";
+      return "No eres quien lo está usando.";
     case "not_your_turn":
       return "No es tu turno todavía.";
     case "your_turn_lock_instead":
-      return "¡Es tu turno! Tocá Ocupar.";
+      return "¡Es tu turno! Presiona Ocupar.";
     case "you_are_inside":
       return "Ya estás dentro.";
     case "already_in_queue":
       return "Ya estás en la fila.";
     case "bathroom_free_lock_instead":
-      return "El baño está libre, tocá Ocupar.";
+      return "El baño está libre, presiona Ocupar.";
     case "extra_max_reached":
       return "Alcanzaste el tiempo extra máximo.";
     case "unauthorized":
-      return "Tu sesión venció. Volvé a iniciar sesión.";
+      return "Tu sesión venció. Vuelve a iniciar sesión.";
     default:
       return "No se pudo completar.";
   }
@@ -83,7 +83,7 @@ export function useBano(meId: string | null): BanoVm {
           body: state.lockedBy ? `Lo está usando ${state.lockedBy.name}` : "",
         });
       } else if (status === "free") {
-        dispatchNotification("free", { title: "Baño libre", body: "Ya podés usarlo." });
+        dispatchNotification("free", { title: "Baño libre", body: "Ya puedes usarlo." });
       }
     }
     prevStatus.current = status;
@@ -92,7 +92,7 @@ export function useBano(meId: string | null): BanoVm {
     if (myTurn && !prevMyTurn.current) {
       dispatchNotification("your_turn", {
         title: "¡Te toca!",
-        body: "Tenés 60 s para ocupar el baño.",
+        body: "Tienes 60 s para ocupar el baño.",
       });
     }
     prevMyTurn.current = myTurn;

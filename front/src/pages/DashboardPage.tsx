@@ -54,10 +54,10 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
   const claimRemaining = myTurn && s?.claimExpiresAt ? Math.max(0, s.claimExpiresAt - Date.now()) : null;
 
   useEffect(() => {
-    if (panic && !isOwner) startAlarm();
+    if (panic) startAlarm();
     else stopAlarm();
     return () => stopAlarm();
-  }, [panic, isOwner]);
+  }, [panic]);
 
   return (
     <main className={`min-h-full w-full bg-gradient-to-b ${theme} text-white transition-colors duration-700`}>
@@ -100,7 +100,7 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
             {panic && (
               <div className="w-full rounded-xl bg-black/30 ring-2 ring-white/50 p-3 mb-3 text-center font-bold flex items-center justify-center gap-2 animate-pulse">
                 <FaToiletPaper className="text-xl" />
-                {isOwner ? "Alerta activa: falta papel" : "¡FALTA PAPEL! Llevá al baño"}
+                {isOwner ? "Alerta activa: falta papel" : "¡FALTA PAPEL! Lleva papel al baño"}
               </div>
             )}
             <div className={`relative h-56 w-56 rounded-full flex items-center justify-center ${isOccupied ? "pulse-ring" : ""}`}>
@@ -124,8 +124,8 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
               <div className="mt-4 rounded-xl bg-amber-400/25 ring-1 ring-amber-200/50 p-3 text-center text-sm flex items-center justify-center gap-2">
                 <FaListOl />
                 <span>
-                  ¡Te toca a vos!
-                  {claimRemaining !== null ? ` Tenés ${Math.ceil(claimRemaining / 1000)}s para ocuparlo.` : ""}
+                  ¡Te toca!
+                  {claimRemaining !== null ? ` Tienes ${Math.ceil(claimRemaining / 1000)}s para ocuparlo.` : ""}
                 </span>
               </div>
             )}
@@ -177,7 +177,7 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
                   onClick={() => void vm.joinQueue()}
                   className="w-full rounded-2xl bg-black/25 hover:bg-black/35 ring-1 ring-white/15 font-semibold py-4 flex items-center justify-center gap-2 transition"
                 >
-                  <FaListOl /> Sumarme a la fila
+                  <FaListOl /> Unirme a la fila
                 </button>
               )}
 
@@ -197,7 +197,7 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
 
               {isOccupied && !isOwner && !myEntry && (
                 <div className="rounded-xl bg-black/25 p-4 text-center text-sm">
-                  Otro compañero lo está usando. Sumate a la fila para que te avise cuando sea tu turno.
+                  Otro compañero lo está usando. Únete a la fila para que te avisemos cuando sea tu turno.
                 </div>
               )}
             </div>

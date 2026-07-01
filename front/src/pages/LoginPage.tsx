@@ -65,9 +65,9 @@ export function LoginPage({ onGoRegister }: { onGoRegister: () => void }) {
       </form>
 
       <p className="text-center text-sm text-slate-300 mt-4">
-        ¿No tenés cuenta?{" "}
+        ¿No tienes cuenta?{" "}
         <button onClick={onGoRegister} className="text-emerald-400 hover:underline font-semibold">
-          Registrate
+          Regístrate
         </button>
       </p>
     </AuthShell>
