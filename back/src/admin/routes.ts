@@ -3,12 +3,13 @@ import { and, desc, gte, lte } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { usageLog, type UsageReason } from "../db/schema.js";
 import { getUser } from "../auth/middleware.js";
+import { isAdmin } from "../auth/roles.js";
 import { HttpError } from "../errors.js";
 
 function requireAdmin(req: FastifyRequest): void {
   const u = getUser(req);
   if (!u) throw new HttpError(401, "unauthorized");
-  if (u.role !== "admin") throw new HttpError(403, "admin_required");
+  if (!isAdmin(u.role)) throw new HttpError(403, "admin_required");
 }
 
 function buildDateRange(from?: string, to?: string): ReturnType<typeof and> | undefined {

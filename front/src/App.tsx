@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/LoginPage.js";
 import { RegisterPage } from "./pages/RegisterPage.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
 import { AdminPage } from "./pages/AdminPage.js";
+import { isAdmin } from "./roles.js";
 
 type AuthView = "login" | "register";
 type Page = "dashboard" | "admin";
@@ -31,7 +32,7 @@ function Shell() {
     );
   }
 
-  if (page === "admin" && user.role === "admin") {
+  if (page === "admin" && isAdmin(user.role)) {
     return <AdminPage onBack={() => setPage("dashboard")} />;
   }
 

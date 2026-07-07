@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { FaTrophy } from "react-icons/fa";
+import { FaLock, FaTrophy } from "react-icons/fa";
 import { api } from "../api.js";
+import { useAuth } from "../auth.js";
+import { canAccessRanking } from "../roles.js";
 import type { RankingEntry } from "../types.js";
 
 type Sort = "total" | "count" | "avg";
@@ -31,17 +33,31 @@ function metricValue(sort: Sort, count: number, totalMs: number): string {
 const medal = ["bg-amber-400 text-slate-900", "bg-slate-300 text-slate-900", "bg-amber-700 text-white"];
 
 export function RankingPanel() {
+  const { user } = useAuth();
+  const allowed = canAccessRanking(user?.role);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [sort, setSort] = useState<Sort>("total");
 
+  // Sin polling si el usuario no tiene permiso (evita 403 cada 15s).
   useEffect(() => {
+    if (!allowed) return;
     const load = () => {
       api.ranking().then((r) => setRanking(r.ranking)).catch(() => {});
     };
     load();
     const id = setInterval(load, 15000);
     return () => clearInterval(id);
-  }, []);
+  }, [allowed]);
+
+  // Visitante: panel bloqueado en lugar del ranking.
+  if (!allowed) {
+    return (
+      <section className="rounded-2xl bg-black/25 ring-1 ring-white/10 p-4 flex flex-col items-center justify-center text-center gap-2">
+        <FaLock className="text-2xl text-white/40" />
+        <p className="text-sm text-white/60">El ranking es solo para usuarios locales.</p>
+      </section>
+    );
+  }
 
   const rows = useMemo(() => {
     const valueOf = (r: RankingEntry) =>

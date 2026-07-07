@@ -7,6 +7,8 @@ import { HttpError } from "../errors.js";
 import { getUser, requireUser } from "./middleware.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { signToken } from "./jwt.js";
+import type { UserRole } from "./jwt.js";
+import { isAdmin } from "./roles.js";
 
 const usernameRegex = /^[a-zA-Z0-9_.-]+$/;
 
@@ -29,7 +31,7 @@ const updateMeSchema = z.object({
 
 const adminUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  role: z.enum(["admin", "member"]).optional(),
+  role: z.enum(["admin", "local", "visitante"]).optional(),
 });
 
 function toPublic(u: { id: string; username: string; name: string; role: string }) {
@@ -47,8 +49,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     if (existing.length) throw new HttpError(409, "username_taken");
 
     const passwordHash = await hashPassword(password);
-    const all = await db.select({ id: users.id }).from(users);
-    const role = all.length === 0 ? "admin" : "member";
+    // Todos los registros nuevos son "visitante" por defecto.
+    // El superadmin se promueve manualmente desde el panel admin.
+    const role: UserRole = "visitante";
 
     const [created] = await db
       .insert(users)
@@ -102,18 +105,22 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/users", async (req, reply) => {
     const u = requireUser(req);
-    if (u.role !== "admin") throw new HttpError(403, "admin_required");
+    if (!isAdmin(u.role)) throw new HttpError(403, "admin_required");
     const rows = await db.select().from(users).orderBy(asc(users.createdAt));
     return reply.send({ users: rows.map(toPublic) });
   });
 
   app.patch<{ Params: { id: string } }>("/users/:id", async (req, reply) => {
     const u = requireUser(req);
-    if (u.role !== "admin") throw new HttpError(403, "admin_required");
+    if (!isAdmin(u.role)) throw new HttpError(403, "admin_required");
     const parsed = adminUpdateSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, "invalid_body");
     const { name, role } = parsed.data;
-    const updates: { name?: string; role?: "admin" | "member" } = {};
+    // El superadmin no puede bajarse su propio rol (evita quedarse sin admin).
+    if (role && role !== "admin" && req.params.id === u.sub) {
+      throw new HttpError(409, "cannot_demote_self");
+    }
+    const updates: { name?: string; role?: UserRole } = {};
     if (name) updates.name = name;
     if (role) updates.role = role;
     if (Object.keys(updates).length === 0) throw new HttpError(400, "nothing_to_update");
@@ -124,7 +131,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete<{ Params: { id: string } }>("/users/:id", async (req, reply) => {
     const u = requireUser(req);
-    if (u.role !== "admin") throw new HttpError(403, "admin_required");
+    if (!isAdmin(u.role)) throw new HttpError(403, "admin_required");
     if (req.params.id === u.sub) throw new HttpError(409, "cannot_delete_self");
     await db.delete(users).where(eq(users.id, req.params.id));
     return reply.code(204).send();

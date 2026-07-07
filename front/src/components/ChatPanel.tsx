@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FaComments, FaPaperPlane, FaSpinner } from "react-icons/fa";
+import { FaComments, FaLock, FaPaperPlane, FaSpinner } from "react-icons/fa";
 import { api, BanoApiError } from "../api.js";
 import { useAuth } from "../auth.js";
+import { canAccessChat } from "../roles.js";
 import type { ChatMessage } from "../types.js";
 
 function fmtTime(ms: number): string {
@@ -11,6 +12,7 @@ function fmtTime(ms: number): string {
 export function ChatPanel() {
   const { user } = useAuth();
   const meId = user?.id ?? null;
+  const allowed = canAccessChat(user?.role);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -18,7 +20,9 @@ export function ChatPanel() {
   const lastRef = useRef<number | undefined>(undefined);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
+  // Sin polling si el usuario no tiene permiso (evita 403 cada 3s).
   useEffect(() => {
+    if (!allowed) return;
     const load = async () => {
       try {
         const res = await api.chatMessages(lastRef.current);
@@ -38,7 +42,17 @@ export function ChatPanel() {
     void load();
     const id = setInterval(load, 3000);
     return () => clearInterval(id);
-  }, []);
+  }, [allowed]);
+
+  // Visitante: panel bloqueado en lugar del chat.
+  if (!allowed) {
+    return (
+      <section className="rounded-2xl bg-black/25 ring-1 ring-white/10 p-4 flex flex-col items-center justify-center text-center gap-2 h-[55vh] lg:h-[calc(100vh-7rem)]">
+        <FaLock className="text-2xl text-white/40" />
+        <p className="text-sm text-white/60">El chat es solo para usuarios locales.</p>
+      </section>
+    );
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

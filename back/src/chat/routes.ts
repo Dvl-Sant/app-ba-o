@@ -4,11 +4,13 @@ import { z } from "zod";
 import { db } from "../db/client.js";
 import { chatMessages } from "../db/schema.js";
 import { getUser } from "../auth/middleware.js";
+import { canAccessChat } from "../auth/roles.js";
 import { HttpError } from "../errors.js";
 
 function requireAuth(req: FastifyRequest) {
   const u = getUser(req);
   if (!u) throw new HttpError(401, "unauthorized");
+  if (!canAccessChat(u.role)) throw new HttpError(403, "forbidden");
   return u;
 }
 

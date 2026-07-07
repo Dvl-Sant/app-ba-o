@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { getUser } from "../auth/middleware.js";
+import { isAdmin } from "../auth/roles.js";
 import { HttpError } from "../errors.js";
 import { extendLock, getPublicState, joinQueue, leaveQueue, lock, setPanic, unlock } from "./logic.js";
 
@@ -15,7 +16,7 @@ export function registerBathroomRoutes(app: FastifyInstance): void {
   app.post("/bathroom/unlock", async (req) => {
     const u = getUser(req);
     if (!u) throw new HttpError(401, "unauthorized");
-    return unlock(u.sub, u.role === "admin");
+    return unlock(u.sub, isAdmin(u.role));
   });
 
   app.post("/bathroom/extend", async (req) => {

@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { JWT_EXPIRES_IN, JWT_SECRET } from "../config.js";
 
-export type UserRole = "admin" | "member";
+export type UserRole = "admin" | "local" | "visitante";
 
 export interface JwtPayload {
   sub: string;

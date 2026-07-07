@@ -8,7 +8,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-export const userRole = pgEnum("user_role", ["admin", "member"]);
+export const userRole = pgEnum("user_role", ["admin", "local", "visitante"]);
 export const banoStatus = pgEnum("bano_status", ["free", "occupied"]);
 export const queueStatus = pgEnum("queue_status", ["waiting", "notified", "served", "skipped"]);
 export const usageReason = pgEnum("usage_reason", ["normal", "forced", "expired"]);
@@ -18,7 +18,7 @@ export const users = pgTable("users", {
   username: varchar("username", { length: 50 }).notNull().unique(),
   name: varchar("name", { length: 100 }).notNull(),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
-  role: userRole("role").default("member").notNull(),
+  role: userRole("role").default("visitante").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

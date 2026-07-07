@@ -3,11 +3,13 @@ import { and, count, desc, gte, lte, sum } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { usageLog } from "../db/schema.js";
 import { getUser } from "../auth/middleware.js";
+import { canAccessRanking } from "../auth/roles.js";
 import { HttpError } from "../errors.js";
 
 function requireAuth(req: FastifyRequest) {
   const u = getUser(req);
   if (!u) throw new HttpError(401, "unauthorized");
+  if (!canAccessRanking(u.role)) throw new HttpError(403, "forbidden");
   return u;
 }
 

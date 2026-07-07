@@ -16,6 +16,7 @@ import { useBano } from "../useBano.js";
 import { Toasts } from "../components/Toasts.js";
 import { RankingPanel } from "../components/RankingPanel.js";
 import { ChatPanel } from "../components/ChatPanel.js";
+import { isAdmin } from "../roles.js";
 import { startAlarm, stopAlarm } from "../notifications.js";
 
 function format(ms: number): string {
@@ -69,7 +70,7 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
             <span className="text-xs uppercase tracking-widest">Baño · Oficina</span>
           </div>
           <div className="flex items-center gap-2">
-            {user.role === "admin" && (
+            {isAdmin(user.role) && (
               <button
                 onClick={onAdmin}
                 className="text-xs bg-amber-400/90 hover:bg-amber-300 text-slate-900 font-semibold rounded-full px-3 py-1 flex items-center gap-1"

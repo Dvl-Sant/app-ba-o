@@ -7,12 +7,15 @@ import {
   FaLockOpen,
   FaSpinner,
   FaSyncAlt,
+  FaTrash,
   FaTrophy,
+  FaUsers,
 } from "react-icons/fa";
 import { useAuth } from "../auth.js";
 import { useBano } from "../useBano.js";
-import { api } from "../api.js";
-import type { HistoryEntry, RankingEntry } from "../types.js";
+import { api, BanoApiError } from "../api.js";
+import { roleLabel } from "../roles.js";
+import type { HistoryEntry, PublicUser, RankingEntry, UserRole } from "../types.js";
 
 function fmtDuration(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -43,6 +46,14 @@ const reasonLabel: Record<HistoryEntry["reason"], string> = {
 
 const medal = ["bg-amber-400 text-slate-900", "bg-slate-300 text-slate-900", "bg-amber-700 text-white"];
 
+const ROLE_OPTIONS: UserRole[] = ["visitante", "local", "admin"];
+
+const roleBadge: Record<UserRole, string> = {
+  admin: "bg-amber-400/20 text-amber-300 ring-amber-300/30",
+  local: "bg-emerald-400/20 text-emerald-300 ring-emerald-300/30",
+  visitante: "bg-slate-400/20 text-slate-300 ring-slate-300/30",
+};
+
 export function AdminPage({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const vm = useBano(user?.id ?? null);
@@ -53,6 +64,12 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [users, setUsers] = useState<PublicUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [usersMsg, setUsersMsg] = useState<string | null>(null);
 
   const refresh = useCallback(async (f?: string, t?: string) => {
     setLoading(true);
@@ -68,9 +85,61 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
     }
   }, []);
 
+  const refreshUsers = useCallback(async () => {
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const res = await api.listUsers();
+      setUsers(res.users);
+    } catch {
+      setUsersError("No se pudo cargar la lista de usuarios.");
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshUsers();
+  }, [refresh, refreshUsers]);
+
+  const changeRole = async (u: PublicUser, role: UserRole) => {
+    if (role === u.role) return;
+    setSavingId(u.id);
+    setUsersMsg(null);
+    try {
+      const res = await api.updateUser(u.id, { role });
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? res.user : x)));
+      setUsersMsg(`Rol de ${res.user.name} → ${roleLabel(res.user.role)}.`);
+    } catch (err) {
+      const msg =
+        err instanceof BanoApiError && err.code === "cannot_demote_self"
+          ? "No puedes bajarte tu propio rol."
+          : "No se pudo actualizar el rol.";
+      setUsersError(msg);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const removeUser = async (u: PublicUser) => {
+    if (!window.confirm(`¿Eliminar a ${u.name} (@${u.username})? Esta acción no se puede deshacer.`)) return;
+    setSavingId(u.id);
+    setUsersMsg(null);
+    try {
+      await api.deleteUser(u.id);
+      setUsers((prev) => prev.filter((x) => x.id !== u.id));
+      setUsersMsg(`${u.name} eliminado.`);
+    } catch (err) {
+      const msg =
+        err instanceof BanoApiError && err.code === "cannot_delete_self"
+          ? "No puedes eliminarte a ti mismo."
+          : "No se pudo eliminar el usuario.";
+      setUsersError(msg);
+    } finally {
+      setSavingId(null);
+    }
+  };
 
   const applyFilters = () => void refresh(from, to);
   const clearFilters = () => {
@@ -157,6 +226,78 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             <FaExclamationTriangle /> {error}
           </div>
         )}
+
+        {/* Usuarios */}
+        <section className="rounded-2xl bg-slate-900 ring-1 ring-white/10 p-4 mb-5">
+          <div className="flex items-center justify-between gap-2 text-sm font-bold mb-3">
+            <span className="flex items-center gap-2">
+              <FaUsers className="text-emerald-400" /> Usuarios ({users.length})
+            </span>
+            <button
+              onClick={() => void refreshUsers()}
+              className="text-xs bg-slate-800 hover:bg-slate-700 rounded-full px-3 py-1.5 flex items-center gap-1"
+            >
+              {usersLoading ? <FaSpinner className="animate-spin" /> : <FaSyncAlt />} Refrescar
+            </button>
+          </div>
+
+          {usersError && (
+            <div className="rounded-lg bg-red-500/15 ring-1 ring-red-400/30 p-2 text-xs mb-2 flex items-center gap-2">
+              <FaExclamationTriangle /> {usersError}
+            </div>
+          )}
+          {usersMsg && (
+            <div className="rounded-lg bg-emerald-500/15 ring-1 ring-emerald-400/30 p-2 text-xs mb-2">{usersMsg}</div>
+          )}
+
+          {usersLoading && users.length === 0 ? (
+            <p className="text-sm text-slate-500">Cargando…</p>
+          ) : users.length === 0 ? (
+            <p className="text-sm text-slate-500">Sin usuarios.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-white/5">
+              {users.map((u) => {
+                const isSelf = u.id === user?.id;
+                const busy = savingId === u.id;
+                return (
+                  <li key={u.id} className="py-2 flex items-center gap-3 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold truncate">{u.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ring-1 ${roleBadge[u.role]}`}>
+                          {roleLabel(u.role)}
+                        </span>
+                        {isSelf && <span className="text-[10px] text-slate-500">(tú)</span>}
+                      </div>
+                      <div className="text-xs text-slate-500 truncate">@{u.username}</div>
+                    </div>
+                    <select
+                      value={u.role}
+                      disabled={busy || isSelf}
+                      onChange={(e) => void changeRole(u, e.target.value as UserRole)}
+                      className="bg-slate-800 rounded-lg px-2 py-1.5 text-xs ring-1 ring-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={isSelf ? "No puedes cambiar tu propio rol" : "Cambiar rol"}
+                    >
+                      {ROLE_OPTIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {roleLabel(r)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => void removeUser(u)}
+                      disabled={busy || isSelf}
+                      className="text-slate-400 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed p-1.5"
+                      title={isSelf ? "No puedes eliminarte" : "Eliminar usuario"}
+                    >
+                      {busy ? <FaSpinner className="animate-spin" /> : <FaTrash />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         {/* Ranking */}
         <section className="rounded-2xl bg-slate-900 ring-1 ring-white/10 p-4 mb-5">

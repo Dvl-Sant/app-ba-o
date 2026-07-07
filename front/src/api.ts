@@ -1,4 +1,4 @@
-import type { AuthResponse, BanoStateDTO, ChatMessage, HistoryEntry, PublicUser, RankingEntry } from "./types.js";
+import type { AuthResponse, BanoStateDTO, ChatMessage, HistoryEntry, PublicUser, RankingEntry, UserRole } from "./types.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const TOKEN_KEY = "bano_token";
@@ -105,4 +105,8 @@ export const api = {
   },
   sendChat: (body: string) =>
     request<{ message: ChatMessage }>("/chat", { method: "POST", body: JSON.stringify({ body }) }),
+  listUsers: () => request<{ users: PublicUser[] }>("/users"),
+  updateUser: (id: string, body: { name?: string; role?: UserRole }) =>
+    request<{ user: PublicUser }>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteUser: (id: string) => request<void>(`/users/${id}`, { method: "DELETE" }),
 };
