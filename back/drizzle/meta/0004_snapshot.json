@@ -337,7 +337,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'member'"
+          "default": "'visitante'"
         },
         "created_at": {
           "name": "created_at",
@@ -397,7 +397,7 @@
       "schema": "public",
       "values": [
         "admin",
-        "member",
+        "local",
         "visitante"
       ]
     }

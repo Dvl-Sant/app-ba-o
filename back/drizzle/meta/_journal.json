@@ -29,22 +29,6 @@
       "when": 1782932120136,
       "tag": "0003_elite_photon",
       "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1782933000000,
-      "tag": "0004_roles_visitante",
-      "breakpoints": true,
-      "transaction": false
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1782933100000,
-      "tag": "0005_member_to_local",
-      "breakpoints": true,
-      "transaction": false
     }
   ]
 }
