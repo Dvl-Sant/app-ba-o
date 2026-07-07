@@ -1,11 +1,6 @@
 -- Agregar 'visitante' al enum user_role.
--- Debe ir antes del RENAME y no puede ejecutarse dentro de una transaccion,
--- por eso se separa en su propio statement.
+-- Postgres no permite ALTER TYPE ... ADD VALUE dentro de un bloque de
+-- transaccion, por eso esta migracion se marca con "transaction": false
+-- en el journal. Se separa del RENAME/ALTER DEFAULT (migracion 0005),
+-- que si pueden ir en transaccion.
 ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'visitante';
---> statement-breakpoint
--- Renombrar 'member' -> 'local'. Postgres actualiza los rows existentes
--- in-place via el catalogo, sin necesidad de UPDATE.
-ALTER TYPE "user_role" RENAME VALUE 'member' TO 'local';
---> statement-breakpoint
--- Los nuevos registros seran 'visitante' por defecto.
-ALTER TABLE "users" ALTER COLUMN "role" SET DEFAULT 'visitante';
