@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FaLock, FaTrophy } from "react-icons/fa";
+import { FaTrophy } from "react-icons/fa";
 import { api } from "../api.js";
 import { useAuth } from "../auth.js";
 import { canAccessRanking } from "../roles.js";
@@ -49,15 +49,8 @@ export function RankingPanel() {
     return () => clearInterval(id);
   }, [allowed]);
 
-  // Visitante: panel bloqueado en lugar del ranking.
-  if (!allowed) {
-    return (
-      <section className="rounded-2xl bg-black/25 ring-1 ring-white/10 p-4 flex flex-col items-center justify-center text-center gap-2">
-        <FaLock className="text-2xl text-white/40" />
-        <p className="text-sm text-white/60">El ranking es solo para usuarios locales.</p>
-      </section>
-    );
-  }
+  // Visitante: el componente no se renderiza (oculto por completo).
+  if (!allowed) return null;
 
   const rows = useMemo(() => {
     const valueOf = (r: RankingEntry) =>

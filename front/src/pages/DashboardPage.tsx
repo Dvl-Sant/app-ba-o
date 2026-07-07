@@ -16,7 +16,7 @@ import { useBano } from "../useBano.js";
 import { Toasts } from "../components/Toasts.js";
 import { RankingPanel } from "../components/RankingPanel.js";
 import { ChatPanel } from "../components/ChatPanel.js";
-import { isAdmin } from "../roles.js";
+import { canAccessChat, canAccessRanking, isAdmin } from "../roles.js";
 import { startAlarm, stopAlarm } from "../notifications.js";
 
 function format(ms: number): string {
@@ -30,6 +30,15 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
   const s = vm.state;
 
   if (!user) return null;
+
+  // Visitantes no ven ranking ni chat: se ocultan por completo y el layout
+  // colapsa a una sola columna centrada.
+  const showRanking = canAccessRanking(user.role);
+  const showChat = canAccessChat(user.role);
+  const gridClass =
+    showRanking || showChat
+      ? "grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_360px] gap-4 lg:items-start"
+      : "grid grid-cols-1 gap-4 lg:items-start";
 
   const isOccupied = s?.status === "occupied";
   const isFree = s?.status === "free";
@@ -90,11 +99,13 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_360px] gap-4 lg:items-start">
+        <div className={gridClass}>
           {/* Ranking - izquierda en desktop, abajo en móvil */}
-          <div className="order-2 lg:order-1 lg:sticky lg:top-4">
-            <RankingPanel />
-          </div>
+          {showRanking && (
+            <div className="order-2 lg:order-1 lg:sticky lg:top-4">
+              <RankingPanel />
+            </div>
+          )}
 
           {/* Baño - centro */}
           <section className="order-1 lg:order-2 w-full max-w-md mx-auto flex flex-col items-center mt-2">
@@ -237,9 +248,11 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
           </section>
 
           {/* Chat - derecha en desktop, abajo en móvil */}
-          <div className="order-3 lg:sticky lg:top-4">
-            <ChatPanel />
-          </div>
+          {showChat && (
+            <div className="order-3 lg:sticky lg:top-4">
+              <ChatPanel />
+            </div>
+          )}
         </div>
 
         <footer className="text-center text-[11px] opacity-70 pt-6 flex items-center justify-center gap-2">

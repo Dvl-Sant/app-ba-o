@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FaComments, FaLock, FaPaperPlane, FaSpinner } from "react-icons/fa";
+import { FaComments, FaPaperPlane, FaSpinner } from "react-icons/fa";
 import { api, BanoApiError } from "../api.js";
 import { useAuth } from "../auth.js";
 import { canAccessChat } from "../roles.js";
@@ -44,15 +44,8 @@ export function ChatPanel() {
     return () => clearInterval(id);
   }, [allowed]);
 
-  // Visitante: panel bloqueado en lugar del chat.
-  if (!allowed) {
-    return (
-      <section className="rounded-2xl bg-black/25 ring-1 ring-white/10 p-4 flex flex-col items-center justify-center text-center gap-2 h-[55vh] lg:h-[calc(100vh-7rem)]">
-        <FaLock className="text-2xl text-white/40" />
-        <p className="text-sm text-white/60">El chat es solo para usuarios locales.</p>
-      </section>
-    );
-  }
+  // Visitante: el componente no se renderiza (oculto por completo).
+  if (!allowed) return null;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
