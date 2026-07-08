@@ -109,4 +109,8 @@ export const api = {
   updateUser: (id: string, body: { name?: string; role?: UserRole }) =>
     request<{ user: PublicUser }>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteUser: (id: string) => request<void>(`/users/${id}`, { method: "DELETE" }),
+  resetPassword: (id: string) =>
+    request<{ ok: true; defaultPassword: string }>(`/users/${id}/reset-password`, { method: "POST" }),
+  updateMe: (body: { name?: string; currentPassword?: string; newPassword?: string }) =>
+    request<AuthResponse>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
 };

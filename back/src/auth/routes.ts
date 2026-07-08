@@ -9,6 +9,7 @@ import { hashPassword, verifyPassword } from "./password.js";
 import { signToken } from "./jwt.js";
 import type { UserRole } from "./jwt.js";
 import { isAdmin } from "./roles.js";
+import { DEFAULT_PASSWORD } from "../config.js";
 
 const usernameRegex = /^[a-zA-Z0-9_.-]+$/;
 
@@ -135,5 +136,18 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     if (req.params.id === u.sub) throw new HttpError(409, "cannot_delete_self");
     await db.delete(users).where(eq(users.id, req.params.id));
     return reply.code(204).send();
+  });
+
+  app.post<{ Params: { id: string } }>("/users/:id/reset-password", async (req, reply) => {
+    const u = requireUser(req);
+    if (!isAdmin(u.role)) throw new HttpError(403, "admin_required");
+    const passwordHash = await hashPassword(DEFAULT_PASSWORD);
+    const [updated] = await db
+      .update(users)
+      .set({ passwordHash })
+      .where(eq(users.id, req.params.id))
+      .returning({ id: users.id });
+    if (!updated) throw new HttpError(404, "user_not_found");
+    return reply.send({ ok: true, defaultPassword: DEFAULT_PASSWORD });
   });
 }

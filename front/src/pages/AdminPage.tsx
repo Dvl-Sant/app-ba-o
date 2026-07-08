@@ -4,6 +4,7 @@ import {
   FaCrown,
   FaExclamationTriangle,
   FaHistory,
+  FaKey,
   FaLockOpen,
   FaSpinner,
   FaSyncAlt,
@@ -136,6 +137,25 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
           ? "No puedes eliminarte a ti mismo."
           : "No se pudo eliminar el usuario.";
       setUsersError(msg);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const resetPassword = async (u: PublicUser) => {
+    if (
+      !window.confirm(
+        `¿Restablecer la contraseña de ${u.name} (@${u.username}) a la default? El usuario deberá cambiarla después.`,
+      )
+    )
+      return;
+    setSavingId(u.id);
+    setUsersMsg(null);
+    try {
+      const res = await api.resetPassword(u.id);
+      setUsersMsg(`Contraseña de ${u.name} restablecida a: ${res.defaultPassword}`);
+    } catch {
+      setUsersError("No se pudo restablecer la contraseña.");
     } finally {
       setSavingId(null);
     }
@@ -284,6 +304,14 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
                         </option>
                       ))}
                     </select>
+                    <button
+                      onClick={() => void resetPassword(u)}
+                      disabled={busy || isSelf}
+                      className="text-slate-400 hover:text-amber-400 disabled:opacity-30 disabled:cursor-not-allowed p-1.5"
+                      title={isSelf ? "No puedes restablecer tu propia contraseña" : "Restablecer contraseña"}
+                    >
+                      {busy ? <FaSpinner className="animate-spin" /> : <FaKey />}
+                    </button>
                     <button
                       onClick={() => void removeUser(u)}
                       disabled={busy || isSelf}

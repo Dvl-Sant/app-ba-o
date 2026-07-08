@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   FaClock,
+  FaCog,
   FaCrown,
   FaExclamationTriangle,
   FaListOl,
@@ -16,6 +17,7 @@ import { useBano } from "../useBano.js";
 import { Toasts } from "../components/Toasts.js";
 import { RankingPanel } from "../components/RankingPanel.js";
 import { ChatPanel } from "../components/ChatPanel.js";
+import { SettingsModal } from "../components/SettingsModal.js";
 import { canAccessChat, canAccessRanking, isAdmin } from "../roles.js";
 import { startAlarm, stopAlarm } from "../notifications.js";
 
@@ -28,6 +30,7 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
   const { user, logout } = useAuth();
   const vm = useBano(user?.id ?? null);
   const s = vm.state;
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (!user) return null;
 
@@ -88,6 +91,13 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
                 <FaCrown /> Admin
               </button>
             )}
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="text-xs bg-white/15 hover:bg-white/25 rounded-full px-3 py-1 flex items-center gap-1"
+              title="Configuración"
+            >
+              <FaCog /> Ajustes
+            </button>
             <span className="text-xs bg-white/15 rounded-full px-3 py-1 max-w-[10rem] truncate">{user.name}</span>
             <button
               onClick={logout}
@@ -259,6 +269,7 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
           <FaClock /> Sesión de 10 min · Se libera solo al expirar · Tiempo extra disponible
         </footer>
       </div>
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </main>
   );
 }

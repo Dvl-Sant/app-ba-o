@@ -8,6 +8,7 @@ interface AuthState {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, name: string, password: string) => Promise<void>;
   logout: () => void;
+  updateProfile: (body: { name?: string; currentPassword?: string; newPassword?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -52,6 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout: () => {
         clearAuth();
         setUser(null);
+      },
+      updateProfile: async (body) => {
+        const res = await api.updateMe(body);
+        setStoredAuth(res.token, res.user);
+        setUser(res.user);
       },
     }),
     [user, loading],

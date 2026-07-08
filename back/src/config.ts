@@ -19,3 +19,7 @@ export const EXTRA_MINUTES_MS = Number(process.env.EXTRA_MINUTES_MS ?? 60 * 1000
 export const EXTRA_MAX = Number(process.env.EXTRA_MAX ?? 5);
 
 export const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "*";
+
+// Contrasenia por defecto que se asigna al restablecer desde el panel admin.
+// El usuario debe cambiarla despues desde su boton de configuracion.
+export const DEFAULT_PASSWORD = process.env.DEFAULT_PASSWORD ?? "facil123";
