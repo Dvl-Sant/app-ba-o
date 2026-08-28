@@ -41,17 +41,9 @@ async function applyEnumMigration(client: pg.Client): Promise<void> {
 }
 
 export async function runMigrations(): Promise<void> {
-  const client = new pg.Client({ connectionString: DATABASE_URL });
-  await client.connect();
-  try {
-    // Primero los cambios de enum fuera de transaccion (ver doc arriba).
-    await applyEnumMigration(client);
-  } finally {
-    await client.end();
-  }
-
-  // Despues el migrador de Drizzle para el resto de migraciones
-  // (0000-0003, ya aplicadas en produccion -> no-op).
+  // Primero el migrador de Drizzle: en una BD nueva crea el schema completo
+  // (incluido el tipo "user_role" y la tabla "users"); en una BD existente
+  // es no-op porque 0000-0003 ya estan aplicadas y registradas en el journal.
   const migrateClient = new pg.Client({ connectionString: DATABASE_URL });
   await migrateClient.connect();
   try {
@@ -59,5 +51,16 @@ export async function runMigrations(): Promise<void> {
     await migrate(migratorDb, { migrationsFolder: "./drizzle" });
   } finally {
     await migrateClient.end();
+  }
+
+  // Despues los cambios de enum fuera de transaccion (ver doc arriba):
+  // requieren que "user_role" y "users" ya existan, asi que deben correr
+  // una vez que Drizzle creo (o ya tenia) el schema.
+  const client = new pg.Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  try {
+    await applyEnumMigration(client);
+  } finally {
+    await client.end();
   }
 }
