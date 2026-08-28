@@ -1,14 +1,13 @@
 services:
+  # Sin container_name: Compose genera nombres únicos por proyecto
+  # (permite varias instancias en el mismo VPS/Docker daemon).
   db:
     image: postgres:16-alpine
-    container_name: bano-db
     restart: unless-stopped
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-bano}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bano}
       - POSTGRES_DB=${POSTGRES_DB:-bano}
-    ports:
-      - "${DB_PORT:-5432}:5432"
     volumes:
       - bano-data:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +22,6 @@ services:
     build:
       context: ./back
       dockerfile: Dockerfile
-    container_name: bano-back
     restart: unless-stopped
     depends_on:
       db:
@@ -54,7 +52,6 @@ services:
     build:
       context: ./front
       dockerfile: Dockerfile
-    container_name: bano-front
     restart: unless-stopped
     expose:
       - "80"
