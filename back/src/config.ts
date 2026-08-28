@@ -23,3 +23,8 @@ export const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "*";
 // Contrasenia por defecto que se asigna al restablecer desde el panel admin.
 // El usuario debe cambiarla despues desde su boton de configuracion.
 export const DEFAULT_PASSWORD = process.env.DEFAULT_PASSWORD ?? "facil123";
+
+// Seed inicial: usuario admin que se crea al arrancar si la BD no tiene
+// ningun admin (instancia nueva). Ver src/auth/seed.ts.
+export const ADMIN_USERNAME = (process.env.ADMIN_USERNAME ?? "admin").toLowerCase();
+export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? DEFAULT_PASSWORD;

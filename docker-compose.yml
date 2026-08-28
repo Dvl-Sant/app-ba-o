@@ -37,6 +37,8 @@ services:
       - EXTRA_MINUTES_MS=${EXTRA_MINUTES_MS:-60000}
       - EXTRA_MAX=${EXTRA_MAX:-5}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-facil123}
     expose:
       - "3000"
     healthcheck:

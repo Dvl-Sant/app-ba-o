@@ -5,6 +5,7 @@ import { runMigrations } from "./db/migrate.js";
 import { ensureBathroomState, purge } from "./bathroom/logic.js";
 import { HttpError } from "./errors.js";
 import { registerAuthRoutes } from "./auth/routes.js";
+import { ensureAdminUser } from "./auth/seed.js";
 import { registerBathroomRoutes } from "./bathroom/routes.js";
 import { registerAdminRoutes } from "./admin/routes.js";
 import { registerStatsRoutes } from "./stats/routes.js";
@@ -62,7 +63,10 @@ app.get("/health", async () => ({ status: "ok" }));
 try {
   await runMigrations();
   await ensureBathroomState();
-  app.log.info("DB ready: migrations applied, bathroom state ensured");
+  const adminSeeded = await ensureAdminUser();
+  app.log.info(
+    `DB ready: migrations applied, bathroom state ensured${adminSeeded ? ", admin user seeded" : ""}`,
+  );
 } catch (err) {
   app.log.error({ err }, "DB bootstrap failed");
   process.exit(1);
