@@ -11,9 +11,11 @@ import {
   FaRestroom,
   FaSignOutAlt,
   FaToiletPaper,
+  FaWindowRestore,
 } from "react-icons/fa";
 import { useAuth } from "../auth.js";
 import { useBano } from "../useBano.js";
+import { openBanoPip } from "../pip.js";
 import { Toasts } from "../components/Toasts.js";
 import { RankingPanel } from "../components/RankingPanel.js";
 import { ChatPanel } from "../components/ChatPanel.js";
@@ -72,6 +74,20 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
     return () => stopAlarm();
   }, [panic]);
 
+  // Tiñe la franja de pestañas del navegador (theme-color) con el color
+  // del estado: verde libre, rojo ocupado, ambar panico. Los valores son
+  // los via-* de los gradientes de arriba.
+  useEffect(() => {
+    const color = panic
+      ? "#eab308"
+      : isOccupied
+        ? "#b91c1c"
+        : isFree
+          ? "#059669"
+          : "#0f172a";
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
+  }, [panic, isOccupied, isFree]);
+
   return (
     <main className={`min-h-full w-full bg-gradient-to-b ${theme} text-white transition-colors duration-700`}>
       <Toasts />
@@ -91,6 +107,13 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
                 <FaCrown /> Admin
               </button>
             )}
+            <button
+              onClick={() => void openBanoPip()}
+              className="text-xs bg-white/15 hover:bg-white/25 rounded-full px-3 py-1 flex items-center gap-1"
+              title="Ventana flotante siempre visible (monitor)"
+            >
+              <FaWindowRestore /> Flotante
+            </button>
             <button
               onClick={() => setSettingsOpen(true)}
               className="text-xs bg-white/15 hover:bg-white/25 rounded-full px-3 py-1 flex items-center gap-1"

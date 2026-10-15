@@ -43,7 +43,10 @@ export interface BanoVm {
   leaveQueue: () => Promise<void>;
 }
 
-export function useBano(meId: string | null): BanoVm {
+export function useBano(
+  meId: string | null,
+  { notify = true }: { notify?: boolean } = {},
+): BanoVm {
   const [state, setState] = useState<BanoStateDTO | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +77,7 @@ export function useBano(meId: string | null): BanoVm {
   }, [refresh]);
 
   useEffect(() => {
-    if (!state) return;
+    if (!state || !notify) return;
     const status = state.status;
     if (prevStatus.current !== null && prevStatus.current !== status) {
       if (status === "occupied") {
