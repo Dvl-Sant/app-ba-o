@@ -23,9 +23,13 @@ function PipWidget() {
   const isFree = s?.status === "free";
   const panic = !!s?.panic;
   const isOwner = !!s?.lockedBy && !!me && s.lockedBy.id === me.id;
+  const myTurn = !!s && !!me && s.notifiedUserId === me.id;
   const myEntry = me && s ? (s.queue.find((q) => q.userId === me.id) ?? null) : null;
+  const canOccupy = isFree && !vm.busy && (!s?.notifiedUserId || myTurn);
+  const canRelease = isOwner && isOccupied && !vm.busy;
   const canJoin = isOccupied && !isOwner && !myEntry && !vm.busy;
   const canLeave = !!myEntry && !vm.busy;
+  const claimRemaining = myTurn && s?.claimExpiresAt ? Math.max(0, s.claimExpiresAt - Date.now()) : null;
 
   const theme = panic
     ? "from-amber-400 via-yellow-500 to-amber-600"
@@ -67,6 +71,33 @@ function PipWidget() {
         <span className="mt-1 text-[11px] bg-black/25 rounded-full px-2 py-0.5">
           En fila · #{myEntry.position}
         </span>
+      )}
+
+      {myTurn && (
+        <span className="mt-1 text-[11px] bg-amber-400/25 ring-1 ring-amber-200/50 rounded-full px-2 py-0.5 font-semibold">
+          ¡Te toca!{claimRemaining !== null ? ` ${Math.ceil(claimRemaining / 1000)}s para ocuparlo` : ""}
+        </span>
+      )}
+
+      {(canOccupy || canRelease) && (
+        <div className="mt-2 flex gap-2">
+          {canOccupy && (
+            <button
+              onClick={() => void vm.occupy()}
+              className="rounded-xl bg-white/90 hover:bg-white text-emerald-700 font-bold text-xs py-2 px-4 flex items-center gap-1 active:scale-95 transition"
+            >
+              <FaLock /> {myTurn ? "Ocupar (es mi turno)" : "Marcar Ocupado"}
+            </button>
+          )}
+          {canRelease && (
+            <button
+              onClick={() => void vm.release()}
+              className="rounded-xl bg-white/90 hover:bg-white text-red-600 font-bold text-xs py-2 px-4 flex items-center gap-1 active:scale-95 transition"
+            >
+              <FaLockOpen /> Liberar
+            </button>
+          )}
+        </div>
       )}
 
       {(canJoin || canLeave) && (
