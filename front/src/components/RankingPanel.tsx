@@ -32,17 +32,25 @@ function metricValue(sort: Sort, count: number, totalMs: number): string {
 
 const medal = ["bg-amber-400 text-slate-900", "bg-slate-300 text-slate-900", "bg-amber-700 text-white"];
 
+// El ranking se reinicia cada mes: solo cuenta usos del mes en curso
+// (desde el dia 1). El historial completo se conserva en la BD.
+function monthStart(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 export function RankingPanel() {
   const { user } = useAuth();
   const allowed = canAccessRanking(user?.role);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [sort, setSort] = useState<Sort>("total");
+  const monthName = new Date().toLocaleString("es", { month: "long" });
 
   // Sin polling si el usuario no tiene permiso (evita 403 cada 15s).
   useEffect(() => {
     if (!allowed) return;
     const load = () => {
-      api.ranking().then((r) => setRanking(r.ranking)).catch(() => {});
+      api.ranking(monthStart()).then((r) => setRanking(r.ranking)).catch(() => {});
     };
     load();
     const id = setInterval(load, 15000);
@@ -62,6 +70,7 @@ export function RankingPanel() {
     <section className="rounded-2xl bg-black/25 ring-1 ring-white/10 p-4">
       <div className="flex items-center gap-2 text-sm font-bold mb-3">
         <FaTrophy className="text-amber-400" /> Ranking baño
+        <span className="text-[11px] font-normal text-white/60 capitalize">· {monthName} (se reinicia cada mes)</span>
       </div>
 
       <div className="flex gap-1 mb-3 bg-black/25 rounded-full p-1 text-xs">

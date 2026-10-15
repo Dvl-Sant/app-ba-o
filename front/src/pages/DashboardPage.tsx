@@ -16,6 +16,7 @@ import {
 import { useAuth } from "../auth.js";
 import { useBano } from "../useBano.js";
 import { openBanoPip } from "../pip.js";
+import { updateFavicon } from "../favicon.js";
 import { Toasts } from "../components/Toasts.js";
 import { RankingPanel } from "../components/RankingPanel.js";
 import { ChatPanel } from "../components/ChatPanel.js";
@@ -74,9 +75,10 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
     return () => stopAlarm();
   }, [panic]);
 
-  // Tiñe la franja de pestañas del navegador (theme-color) con el color
-  // del estado: verde libre, rojo ocupado, ambar panico. Los valores son
-  // los via-* de los gradientes de arriba.
+  // Tiñe la franja de pestañas del navegador (theme-color, solo Android y
+  // PWA instalada en desktop) y el icono de la pestana (favicon dinamico,
+  // visible en cualquier navegador): verde libre, rojo ocupado, ambar
+  // panico. Los valores son los via-* de los gradientes de arriba.
   useEffect(() => {
     const color = panic
       ? "#eab308"
@@ -86,6 +88,7 @@ export function DashboardPage({ onAdmin }: { onAdmin: () => void }) {
           ? "#059669"
           : "#0f172a";
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
+    updateFavicon(panic ? "panic" : isOccupied ? "occupied" : isFree ? "free" : "unknown");
   }, [panic, isOccupied, isFree]);
 
   return (

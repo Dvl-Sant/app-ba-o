@@ -55,11 +55,18 @@ const roleBadge: Record<UserRole, string> = {
   visitante: "bg-slate-400/20 text-slate-300 ring-slate-300/30",
 };
 
+// El historial abre por defecto filtrado al mes en curso (se "reinicia"
+// cada mes). "Limpiar" muestra todo el historial acumulado.
+function monthStartInput(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 export function AdminPage({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const vm = useBano(user?.id ?? null);
 
-  const [from, setFrom] = useState("");
+  const [from, setFrom] = useState(monthStartInput);
   const [to, setTo] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
@@ -100,7 +107,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    void refresh(monthStartInput());
     void refreshUsers();
   }, [refresh, refreshUsers]);
 

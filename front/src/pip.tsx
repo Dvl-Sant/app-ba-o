@@ -1,5 +1,6 @@
 import { createRoot, type Root } from "react-dom/client";
-import { FaClock, FaLock, FaLockOpen, FaToiletPaper } from "react-icons/fa";
+import { FaClock, FaListOl, FaLock, FaLockOpen, FaSignOutAlt, FaToiletPaper } from "react-icons/fa";
+import { getStoredAuth } from "./api.js";
 import { useBano } from "./useBano.js";
 
 // Monitor flotante siempre visible (Document Picture-in-Picture, Chromium
@@ -14,11 +15,17 @@ function format(ms: number): string {
 }
 
 function PipWidget() {
-  const vm = useBano(null, { notify: false });
+  // Misma sesion que la pestana principal (localStorage del mismo origen).
+  const me = getStoredAuth()?.user ?? null;
+  const vm = useBano(me?.id ?? null, { notify: false });
   const s = vm.state;
   const isOccupied = s?.status === "occupied";
   const isFree = s?.status === "free";
   const panic = !!s?.panic;
+  const isOwner = !!s?.lockedBy && !!me && s.lockedBy.id === me.id;
+  const myEntry = me && s ? (s.queue.find((q) => q.userId === me.id) ?? null) : null;
+  const canJoin = isOccupied && !isOwner && !myEntry && !vm.busy;
+  const canLeave = !!myEntry && !vm.busy;
 
   const theme = panic
     ? "from-amber-400 via-yellow-500 to-amber-600"
@@ -30,7 +37,7 @@ function PipWidget() {
 
   return (
     <div
-      className={`h-full w-full bg-gradient-to-b ${theme} text-white flex flex-col items-center justify-center gap-1 select-none transition-colors duration-700`}
+      className={`h-full w-full bg-gradient-to-b ${theme} text-white flex flex-col items-center justify-center gap-1 select-none transition-colors duration-700 p-2`}
     >
       {panic && (
         <div className="flex items-center gap-2 font-bold text-amber-200 animate-pulse mb-1">
@@ -48,13 +55,39 @@ function PipWidget() {
           <FaClock /> {format(vm.remainingMs)}
         </span>
       )}
-      {isOccupied && s?.lockedBy && (
+      {isOccupied && s?.lockedBy && !isOwner && (
         <span className="text-xs opacity-80">Lo usa {s.lockedBy.name}</span>
       )}
-      {s && s.queue.length > 0 && (
+      {s && s.queue.length > 0 && !myEntry && (
         <span className="mt-1 text-[11px] bg-black/25 rounded-full px-2 py-0.5">
           Fila: {s.queue.length}
         </span>
+      )}
+      {myEntry && (
+        <span className="mt-1 text-[11px] bg-black/25 rounded-full px-2 py-0.5">
+          En fila · #{myEntry.position}
+        </span>
+      )}
+
+      {(canJoin || canLeave) && (
+        <div className="mt-2 flex gap-2">
+          {canJoin && (
+            <button
+              onClick={() => void vm.joinQueue()}
+              className="rounded-xl bg-white/90 hover:bg-white text-slate-900 font-semibold text-xs py-2 px-3 flex items-center gap-1 active:scale-95 transition"
+            >
+              <FaListOl /> Unirme a la fila
+            </button>
+          )}
+          {canLeave && (
+            <button
+              onClick={() => void vm.leaveQueue()}
+              className="rounded-xl bg-black/30 hover:bg-black/45 ring-1 ring-white/20 font-semibold text-xs py-2 px-3 flex items-center gap-1 active:scale-95 transition"
+            >
+              <FaSignOutAlt /> Salir de la fila
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -93,7 +126,7 @@ export async function openBanoPip(): Promise<boolean> {
 
   const pipWindow = await dpip.requestWindow({
     width: 320,
-    height: 200,
+    height: 240,
     disallowReturnToOpener: false,
   });
 
